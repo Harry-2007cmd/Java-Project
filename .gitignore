@@ -3,3 +3,4 @@ target/
 .idea/
 *.iml
 .vscode/
+Java-Project\src\main\resources\db.properties
