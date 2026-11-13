@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Campus Parking</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">P</span>
+    <div>
+      <h1>Smart Campus Parking</h1>
+      <p>&amp; Vehicle Finder</p>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="park">Park a Vehicle</button>
+    <button class="tab" data-view="finder">Find my Vehicle</button>
+    <button class="tab" data-view="report">Occupancy Report</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section class="view active" id="view-dashboard">
+    <div class="stat-row" id="stat-row"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Parking Slots</h2>
+        <select id="slot-filter">
+          <option value="">All types</option>
+          <option value="CAR">Car</option>
+          <option value="BIKE">Bike</option>
+          <option value="BUS">Bus</option>
+          <option value="EV">EV</option>
+        </select>
+      </div>
+      <div class="slot-grid" id="slot-grid"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Currently Parked</h2>
+        <button class="btn-ghost" id="refresh-parked">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Vehicle No.</th><th>Slot</th><th>Location</th><th>Entry Time</th><th>Parked For</th><th></th></tr>
+          </thead>
+          <tbody id="parked-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PARK A VEHICLE ===================== -->
+  <section class="view" id="view-park">
+    <div class="panel narrow">
+      <h2>Park a Vehicle</h2>
+      <p class="hint">A free slot matching the vehicle type is allocated automatically.</p>
+      <form id="park-form">
+        <label>Vehicle Number
+          <input type="text" id="p-number" placeholder="e.g. KA01AB1234" required>
+        </label>
+        <label>Vehicle Type
+          <select id="p-type" required>
+            <option value="CAR">Car</option>
+            <option value="BIKE">Bike</option>
+            <option value="BUS">Bus</option>
+            <option value="EV">EV</option>
+          </select>
+        </label>
+        <label>Owner Name
+          <input type="text" id="p-owner" placeholder="e.g. Rohan Sharma" required>
+        </label>
+        <label>Owner Contact
+          <input type="text" id="p-contact" placeholder="e.g. 9876543210">
+        </label>
+        <button type="submit" class="btn-primary">Allocate Slot &amp; Park</button>
+      </form>
+      <div id="park-result" class="result-box hidden"></div>
+    </div>
+  </section>
+
+  <!-- ===================== VEHICLE FINDER ===================== -->
+  <section class="view" id="view-finder">
+    <div class="panel narrow">
+      <h2>Find my Vehicle</h2>
+      <p class="hint">Enter your vehicle number to see exactly where it's parked, or to leave.</p>
+      <form id="find-form">
+        <label>Vehicle Number
+          <input type="text" id="f-number" placeholder="e.g. KA01AB1234" required>
+        </label>
+        <button type="submit" class="btn-primary">Locate Vehicle</button>
+      </form>
+      <div id="find-result" class="result-box hidden"></div>
+    </div>
+  </section>
+
+  <!-- ===================== OCCUPANCY REPORT ===================== -->
+  <section class="view" id="view-report">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Occupancy Report</h2>
+        <button class="btn-ghost" id="refresh-report">Refresh</button>
+      </div>
+      <div class="report-grid" id="report-grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent History</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Vehicle No.</th><th>Slot</th><th>Entry</th><th>Exit</th><th>Duration</th></tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
