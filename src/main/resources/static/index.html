@@ -8,6 +8,53 @@
 </head>
 <body>
 
+<!-- ===================== LOGIN / SIGN UP (shown when nobody is logged in) ===================== -->
+<div id="auth-screen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="brand auth-brand">
+      <span class="brand-mark">P</span>
+      <div>
+        <h1>Smart Campus Parking</h1>
+        <p>&amp; Vehicle Finder</p>
+      </div>
+    </div>
+
+    <div class="auth-switch">
+      <button class="tab active" id="show-login">Log in</button>
+      <button class="tab" id="show-register">Sign up</button>
+    </div>
+
+    <form id="login-form">
+      <label>Username
+        <input type="text" id="l-username" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input type="password" id="l-password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn-primary">Log in</button>
+    </form>
+
+    <form id="register-form" class="hidden">
+      <label>Full Name
+        <input type="text" id="r-fullname" autocomplete="name" required>
+      </label>
+      <label>Username
+        <input type="text" id="r-username" autocomplete="username" placeholder="letters, digits, _ or ." required>
+      </label>
+      <label>Password
+        <input type="password" id="r-password" autocomplete="new-password" placeholder="at least 6 characters" required>
+      </label>
+      <button type="submit" class="btn-primary">Create student account</button>
+    </form>
+
+    <div id="auth-error" class="result-box error hidden"></div>
+    <p class="hint auth-hint">Demo accounts: <strong>admin</strong> / admin123 &middot; <strong>student1</strong> / student123</p>
+  </div>
+</div>
+
+<!-- ===================== MAIN APP (shown after login) ===================== -->
+<div id="app" class="hidden">
+
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark">P</span>
@@ -21,7 +68,13 @@
     <button class="tab" data-view="park">Park a Vehicle</button>
     <button class="tab" data-view="finder">Find my Vehicle</button>
     <button class="tab" data-view="report">Occupancy Report</button>
+    <button class="tab admin-only hidden" data-view="manage">Manage Slots</button>
   </nav>
+  <div class="user-chip">
+    <span id="user-name"></span>
+    <span class="role-badge" id="user-role"></span>
+    <button class="btn-ghost" id="logout-btn">Log out</button>
+  </div>
 </header>
 
 <main>
@@ -46,7 +99,7 @@
 
     <div class="panel">
       <div class="panel-head">
-        <h2>Currently Parked</h2>
+        <h2 id="parked-title">Currently Parked</h2>
         <button class="btn-ghost" id="refresh-parked">Refresh</button>
       </div>
       <div class="table-wrap">
@@ -65,6 +118,7 @@
     <div class="panel narrow">
       <h2>Park a Vehicle</h2>
       <p class="hint">A free slot matching the vehicle type is allocated automatically.</p>
+      <div class="rates-box" id="rates-box"></div>
       <form id="park-form">
         <label>Vehicle Number
           <input type="text" id="p-number" placeholder="e.g. KA01AB1234" required>
@@ -77,8 +131,8 @@
             <option value="EV">EV</option>
           </select>
         </label>
-        <label>Owner Name
-          <input type="text" id="p-owner" placeholder="e.g. Rohan Sharma" required>
+        <label>Owner Name <span class="optional">(optional &ndash; defaults to your name)</span>
+          <input type="text" id="p-owner" placeholder="e.g. Rohan Sharma">
         </label>
         <label>Owner Contact
           <input type="text" id="p-contact" placeholder="e.g. 9876543210">
@@ -93,7 +147,7 @@
   <section class="view" id="view-finder">
     <div class="panel narrow">
       <h2>Find my Vehicle</h2>
-      <p class="hint">Enter your vehicle number to see exactly where it's parked, or to leave.</p>
+      <p class="hint">Enter your vehicle number to see exactly where it's parked, or to leave and see your fee.</p>
       <form id="find-form">
         <label>Vehicle Number
           <input type="text" id="f-number" placeholder="e.g. KA01AB1234" required>
@@ -115,11 +169,11 @@
     </div>
 
     <div class="panel">
-      <h2>Recent History</h2>
+      <h2 id="history-title">Recent History</h2>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Vehicle No.</th><th>Slot</th><th>Entry</th><th>Exit</th><th>Duration</th></tr>
+            <tr><th>Vehicle No.</th><th>Slot</th><th>Entry</th><th>Exit</th><th>Duration</th><th>Fee</th></tr>
           </thead>
           <tbody id="history-body"></tbody>
         </table>
@@ -127,7 +181,49 @@
     </div>
   </section>
 
+  <!-- ===================== MANAGE SLOTS (admin only) ===================== -->
+  <section class="view" id="view-manage">
+    <div class="stat-row" id="revenue-row"></div>
+
+    <div class="panel">
+      <h2>Add a Parking Slot</h2>
+      <form id="slot-form" class="inline-form">
+        <label>Slot Number
+          <input type="text" id="s-number" placeholder="e.g. A-04" required>
+        </label>
+        <label>Vehicle Type
+          <select id="s-type" required>
+            <option value="CAR">Car</option>
+            <option value="BIKE">Bike</option>
+            <option value="BUS">Bus</option>
+            <option value="EV">EV</option>
+          </select>
+        </label>
+        <label>Location
+          <input type="text" id="s-location" placeholder="e.g. Block A - Ground Floor" required>
+        </label>
+        <button type="submit" class="btn-primary">Add Slot</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>All Slots</h2>
+        <button class="btn-ghost" id="refresh-manage">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Type</th><th>Location</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="manage-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
 </main>
+</div>
 
 <div id="toast" class="toast hidden"></div>
 

@@ -102,8 +102,28 @@ public class ParkingSlotDAO {
                     slot.setSlotId(keys.getInt(1));
                 }
             }
+        } catch (java.sql.SQLIntegrityConstraintViolationException e) {
+            throw new IllegalStateException("Slot number " + slot.getSlotNumber() + " already exists");
         }
         return slot;
+    }
+
+    /**
+     * Deletes a slot. Refused while the slot is occupied, and for slots that already
+     * appear in the parking history (the history rows still point at them).
+     */
+    public void delete(int slotId) throws SQLException {
+        ParkingSlot slot = findById(slotId).orElseThrow(() -> new IllegalStateException("Slot not found"));
+        if (slot.isOccupied()) {
+            throw new IllegalStateException("Slot " + slot.getSlotNumber() + " is occupied right now and cannot be deleted");
+        }
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement("DELETE FROM parking_slots WHERE slot_id = ?")) {
+            ps.setInt(1, slotId);
+            ps.executeUpdate();
+        } catch (java.sql.SQLIntegrityConstraintViolationException e) {
+            throw new IllegalStateException("Slot " + slot.getSlotNumber() + " has parking history and cannot be deleted");
+        }
     }
 
     /** Count of slots per vehicle type, and how many of those are occupied - used for occupancy reports. */

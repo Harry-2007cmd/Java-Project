@@ -9,6 +9,36 @@ students locate their parked vehicles.
 - Store parking location and vehicle details
 - Calculate how long a vehicle has been / was parked
 - Generate occupancy reports (per vehicle type and overall)
+- **Login with two roles**: students see and manage only their own vehicles;
+  admins see everything and can add/delete parking slots and view total revenue
+- **Billing by duration**: a fee is calculated when a vehicle leaves
+
+### Demo accounts
+
+| Username   | Password     | Role    |
+|------------|--------------|---------|
+| `admin`    | `admin123`   | ADMIN   |
+| `student1` | `student123` | STUDENT |
+
+New students can also sign up from the login screen (sign-up always creates a
+STUDENT; admins are created directly in the database).
+
+### Billing rule
+
+The hourly rate for the vehicle type (table `parking_rates`; default Car 20,
+Bike 10, Bus 50, EV 15 rupees) is charged for **every started hour, minimum one
+hour**. At 20/hour: 5 min = 20, 60 min = 20, 61 min = 40. The fee is stored on
+the parking record when the vehicle exits.
+
+### Security notes
+
+- Passwords are never stored in plain text: each user has a random salt and the
+  password is hashed with PBKDF2-HMAC-SHA256 (`AuthUtil`).
+- Login sessions are kept in server memory and identified by a random cookie,
+  so restarting the server logs everyone out.
+- A student cannot see, find or un-park another student's vehicle; the server
+  enforces this, not just the UI.
+- Everything shown in the web page is HTML-escaped.
 
 ## Tech stack
 
@@ -29,11 +59,11 @@ routing — is written by hand so the whole project stays easy to explain.
 
 ```
 src/main/java/com/campus/parking/
-  model/      Vehicle, ParkingSlot, ParkingRecord, VehicleType
+  model/      Vehicle, ParkingSlot, ParkingRecord, VehicleType, User, Role
   dao/        JDBC data-access classes (one per table)
-  service/    ParkingService - all business logic (allocation, duration, reports)
-  util/       DBConnection - JDBC connection helper
-  web/        Server, ApiHandlers, StaticFileHandler, JsonUtil (REST API + static file server)
+  service/    ParkingService (allocation, billing, reports), AuthService (login, sign-up)
+  util/       DBConnection (JDBC connection helper), AuthUtil (password hashing)
+  web/        Server, ApiHandlers, SessionManager, StaticFileHandler, JsonUtil (REST API + static file server)
   ConsoleApp.java   Text-menu version of the app (same service layer)
 
 src/main/resources/
@@ -65,8 +95,14 @@ Make sure MySQL is installed and running, then:
 mysql -u root -p < src/main/resources/db/schema.sql
 ```
 
-This creates the `campus_parking` database, its three tables, and 10 sample
-parking slots so the app has something to show immediately.
+This creates the `campus_parking` database and its five tables (users, parking
+slots, parking rates, vehicles, parking records), plus 10 sample parking slots,
+the billing rates and the two demo accounts.
+
+> **Updating from an earlier version?** The schema changed (login + billing), so
+> run `schema.sql` again. It drops and recreates the tables, so any parking data
+> you entered before is wiped. You can also open it in MySQL Workbench
+> (File > Open SQL Script) and press the lightning-bolt Execute button.
 
 ### 2. Configure the connection
 
@@ -107,23 +143,36 @@ Then open **http://localhost:8080** in your browser. Change the port with
 mvn exec:java -Dexec.mainClass=com.campus.parking.ConsoleApp
 ```
 
+It asks for a username and password first (use a demo account above).
+
 ## REST API reference
 
-| Method | Endpoint                         | Description                              |
-|--------|-----------------------------------|-------------------------------------------|
-| GET    | `/api/slots`                     | All parking slots                          |
-| GET    | `/api/slots?type=CAR`             | Only free slots of that vehicle type       |
-| POST   | `/api/park`                      | `{vehicleNumber, vehicleType, ownerName, ownerContact}` -> allocates a slot and parks the vehicle |
-| POST   | `/api/unpark`                    | `{vehicleNumber}` -> ends the parking session, frees the slot |
-| GET    | `/api/locate?vehicleNumber=..`    | Finds where a vehicle is currently parked  |
-| GET    | `/api/parked`                    | Everything currently parked                |
-| GET    | `/api/history?limit=20`          | Recent park/unpark history                 |
-| GET    | `/api/report`                    | Occupancy report per vehicle type + overall|
+Every endpoint except login/sign-up needs a logged-in session (cookie). Without
+one the API answers `401`; a student calling an admin endpoint gets `403`.
+
+| Method | Endpoint                         | Who    | Description                              |
+|--------|-----------------------------------|--------|-------------------------------------------|
+| POST   | `/api/login`                     | anyone | `{username, password}` -> starts a session |
+| POST   | `/api/register`                  | anyone | `{username, password, fullName}` -> creates a STUDENT and logs in |
+| POST   | `/api/logout`                    | user   | Ends the session                           |
+| GET    | `/api/me`                        | user   | Who is logged in (name, role)              |
+| GET    | `/api/slots`                     | user   | All parking slots                          |
+| GET    | `/api/slots?type=CAR`             | user   | Only free slots of that vehicle type       |
+| POST   | `/api/park`                      | user   | `{vehicleNumber, vehicleType, ownerName, ownerContact}` -> allocates a slot and parks the vehicle |
+| POST   | `/api/unpark`                    | user   | `{vehicleNumber}` -> ends the session, frees the slot, returns duration and fee |
+| GET    | `/api/locate?vehicleNumber=..`    | user   | Where a vehicle is parked (students: own vehicles only) |
+| GET    | `/api/parked`                    | user   | Currently parked (students: own vehicles only) |
+| GET    | `/api/history?limit=20`          | user   | Recent history with fees (students: own only) |
+| GET    | `/api/report`                    | user   | Occupancy report per vehicle type + overall|
+| GET    | `/api/rates`                     | user   | Hourly rate per vehicle type               |
+| POST   | `/api/admin/slots`               | admin  | `{slotNumber, vehicleType, location}` -> adds a slot |
+| DELETE | `/api/admin/slots/{id}`          | admin  | Deletes a slot (not while occupied or once it has history) |
+| GET    | `/api/admin/revenue`             | admin  | Total fees collected                       |
 
 ## Possible future improvements
 
-- Login for students/admin, and a separate admin view for managing slots
 - Reservations (book a slot in advance) instead of first-come allocation
-- Billing/fees based on parking duration
+- Online payment instead of just calculating the fee
+- Admin screen to change the hourly rates and manage user accounts
 - Email/SMS notification when a vehicle has been parked for a long time
 - Switch the hand-rolled JSON/HTTP layer to Spring Boot if the project grows

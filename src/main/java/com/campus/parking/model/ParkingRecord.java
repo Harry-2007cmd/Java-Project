@@ -15,11 +15,13 @@ public class ParkingRecord {
     private LocalDateTime entryTime;
     private LocalDateTime exitTime;
     private Long durationMinutes;
+    private java.math.BigDecimal feeAmount;   // set when the vehicle exits
 
     // Extra display-only fields populated by joined queries (not stored directly)
     private String vehicleNumber;
     private String slotNumber;
     private String location;
+    private Integer ownerUserId;   // the student account the vehicle belongs to (null if none)
 
     public ParkingRecord() {
     }
@@ -70,6 +72,22 @@ public class ParkingRecord {
 
     public void setDurationMinutes(Long durationMinutes) {
         this.durationMinutes = durationMinutes;
+    }
+
+    public Integer getOwnerUserId() {
+        return ownerUserId;
+    }
+
+    public void setOwnerUserId(Integer ownerUserId) {
+        this.ownerUserId = ownerUserId;
+    }
+
+    public java.math.BigDecimal getFeeAmount() {
+        return feeAmount;
+    }
+
+    public void setFeeAmount(java.math.BigDecimal feeAmount) {
+        this.feeAmount = feeAmount;
     }
 
     public String getVehicleNumber() {

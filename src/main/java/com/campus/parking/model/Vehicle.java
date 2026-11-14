@@ -9,6 +9,7 @@ public class Vehicle {
     private VehicleType vehicleType;
     private String ownerName;
     private String ownerContact;
+    private Integer userId;   // the student account that registered this vehicle (null if parked by an admin)
 
     public Vehicle() {
     }
@@ -19,6 +20,14 @@ public class Vehicle {
         this.vehicleType = vehicleType;
         this.ownerName = ownerName;
         this.ownerContact = ownerContact;
+    }
+
+    public Integer getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Integer userId) {
+        this.userId = userId;
     }
 
     public int getVehicleId() {

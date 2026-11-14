@@ -119,6 +119,7 @@ final class JsonUtil {
                 .put("entryTime", r.getEntryTime() != null ? r.getEntryTime().format(FMT) : null)
                 .put("exitTime", r.getExitTime() != null ? r.getExitTime().format(FMT) : null)
                 .put("durationMinutes", r.getDurationMinutes())
+                .put("feeAmount", r.getFeeAmount())
                 .put("active", r.isActive());
     }
 

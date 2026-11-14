@@ -21,7 +21,18 @@ public class Server {
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
+        // Login / sessions
+        server.createContext("/api/login", new ApiHandlers.LoginHandler());
+        server.createContext("/api/register", new ApiHandlers.RegisterHandler());
+        server.createContext("/api/logout", new ApiHandlers.LogoutHandler());
+        server.createContext("/api/me", new ApiHandlers.MeHandler());
+
+        // Admin only
+        server.createContext("/api/admin/slots", new ApiHandlers.AdminSlotsHandler());
+        server.createContext("/api/admin/revenue", new ApiHandlers.RevenueHandler());
+
         // REST API - everything under /api/*
+        server.createContext("/api/rates", new ApiHandlers.RatesHandler());
         server.createContext("/api/slots", new ApiHandlers.SlotsHandler());
         server.createContext("/api/park", new ApiHandlers.ParkHandler());
         server.createContext("/api/unpark", new ApiHandlers.UnparkHandler());
