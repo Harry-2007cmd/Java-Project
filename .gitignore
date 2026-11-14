@@ -3,4 +3,6 @@ target/
 .idea/
 *.iml
 .vscode/
-Java-Project\src\main\resources\db.properties
+
+# Local database credentials (copy db.properties.example to db.properties)
+src/main/resources/db.properties

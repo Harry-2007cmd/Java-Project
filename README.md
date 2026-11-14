@@ -68,7 +68,7 @@ src/main/java/com/campus/parking/
 
 src/main/resources/
   db/schema.sql     MySQL schema + seed data
-  db.properties     DB connection settings
+  db.properties.example  Template for db.properties (copy it; db.properties is git-ignored)
   static/           The HTML/CSS/JS frontend
 ```
 
@@ -106,7 +106,9 @@ the billing rates and the two demo accounts.
 
 ### 2. Configure the connection
 
-Edit `src/main/resources/db.properties` with your MySQL username/password:
+Copy `src/main/resources/db.properties.example` to `src/main/resources/db.properties`
+(the real file is git-ignored so your password is never committed) and put your
+MySQL username/password in it:
 
 ```properties
 db.url=jdbc:mysql://localhost:3306/campus_parking?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
