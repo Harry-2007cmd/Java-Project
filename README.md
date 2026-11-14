@@ -165,7 +165,7 @@ one the API answers `401`; a student calling an admin endpoint gets `403`.
 | GET    | `/api/locate?vehicleNumber=..`    | user   | Where a vehicle is parked (students: own vehicles only) |
 | GET    | `/api/parked`                    | user   | Currently parked (students: own vehicles only) |
 | GET    | `/api/history?limit=20`          | user   | Recent history with fees (students: own only) |
-| GET    | `/api/report`                    | user   | Occupancy report per vehicle type + overall|
+| GET    | `/api/report`                    | admin  | Occupancy report per vehicle type + overall|
 | GET    | `/api/rates`                     | user   | Hourly rate per vehicle type               |
 | POST   | `/api/admin/slots`               | admin  | `{slotNumber, vehicleType, location}` -> adds a slot |
 | DELETE | `/api/admin/slots/{id}`          | admin  | Deletes a slot (not while occupied or once it has history) |

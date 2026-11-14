@@ -204,7 +204,7 @@ const VIEWS = {
 };
 
 function navigate(name) {
-  if (name === "manage" && !isAdmin()) name = "overview";
+  if ((name === "manage" || name === "reports") && !isAdmin()) name = "overview";
   const view = VIEWS[name];
   document.querySelectorAll("#tabs .nav-item").forEach((b) => {
     const on = b.dataset.view === name;
@@ -226,12 +226,12 @@ document.querySelectorAll("[data-goto]").forEach((btn) => btn.addEventListener("
 
 async function loadOverview() {
   try {
-    const [slots, parked, history, report] = await Promise.all([api.slots(), api.parked(), api.history(30), api.report()]);
+    const [slots, parked, history] = await Promise.all([api.slots(), api.parked(), api.history(30)]);
     renderOverviewStats(slots);
     $("zone-grid").innerHTML = renderZoneCards(slots);
     renderActivity(history);
     renderParked(parked);
-    renderDonut(report);
+    renderDonut(occupancyByType(slots));
   } catch (e) {
     handleError(e);
   }
@@ -341,6 +341,17 @@ function renderParked(records) {
       }
     });
   });
+}
+
+// Per-type occupied counts built from the slot list, so students never need the admin-only report.
+function occupancyByType(slots) {
+  const out = {};
+  slots.forEach((s) => {
+    const row = out[s.vehicleType] || (out[s.vehicleType] = { totalSlots: 0, occupiedSlots: 0 });
+    row.totalSlots += 1;
+    if (s.occupied) row.occupiedSlots += 1;
+  });
+  return out;
 }
 
 function renderDonut(report) {
