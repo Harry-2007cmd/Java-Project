@@ -53,6 +53,8 @@ public class StaticFileHandler implements HttpHandler {
         if (path.endsWith(".css")) return "text/css; charset=utf-8";
         if (path.endsWith(".js")) return "application/javascript; charset=utf-8";
         if (path.endsWith(".json")) return "application/json; charset=utf-8";
+        if (path.endsWith(".woff2")) return "font/woff2";   // the bundled Inter font files
+        if (path.endsWith(".svg")) return "image/svg+xml";
         String guess = URLConnection.guessContentTypeFromName(path);
         return guess != null ? guess : "application/octet-stream";
     }
