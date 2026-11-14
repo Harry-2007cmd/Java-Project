@@ -4,228 +4,303 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart Campus Parking</title>
+<link rel="preload" href="/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
+<!-- Icon sprite: drawn once here, used everywhere with <svg><use href="#i-name"/></svg> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 17v2m14-2v2M3 13l2-6h14l2 6v4H3z"/><path d="M7.5 14.5h.01M16.5 14.5h.01"/></symbol>
+    <symbol id="i-parking" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9.5 17V7H13a3 3 0 010 6H9.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20v-9M12 20V4M19 20v-6"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol>
+    <symbol id="i-pie" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-rupee" viewBox="0 0 24 24"><path d="M7 5h10M7 9h10M7 5c5 0 7 1.5 7 4s-2 4-7 4l7 6"/></symbol>
+  </defs>
+</svg>
+
 <!-- ===================== LOGIN / SIGN UP (shown when nobody is logged in) ===================== -->
 <div id="auth-screen" class="auth-screen hidden">
-  <div class="auth-card">
-    <div class="brand auth-brand">
+  <section class="auth-brand">
+    <div class="brand">
       <span class="brand-mark">P</span>
-      <div>
-        <h1>Smart Campus Parking</h1>
-        <p>&amp; Vehicle Finder</p>
+      <span class="brand-name">Smart Campus Parking</span>
+    </div>
+    <div class="auth-pitch">
+      <h1>Park once.<br>Find it again in seconds.</h1>
+      <p>See which bays are free, get a slot allocated for your vehicle type, and look up exactly where you left it.</p>
+    </div>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-card">
+      <div class="auth-switch" role="tablist">
+        <button type="button" class="auth-tab active" id="show-login" role="tab">Log in</button>
+        <button type="button" class="auth-tab" id="show-register" role="tab">Sign up</button>
       </div>
+
+      <form id="login-form">
+        <label>Username
+          <input type="text" id="l-username" autocomplete="username" required>
+        </label>
+        <label>Password
+          <input type="password" id="l-password" autocomplete="current-password" required>
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Log in</button>
+      </form>
+
+      <form id="register-form" class="hidden">
+        <label>Full name
+          <input type="text" id="r-fullname" autocomplete="name" required>
+        </label>
+        <label>Username
+          <input type="text" id="r-username" autocomplete="username" placeholder="Letters, digits, _ or ." required>
+        </label>
+        <label>Password
+          <input type="password" id="r-password" autocomplete="new-password" placeholder="At least 6 characters" required>
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Create student account</button>
+      </form>
+
+      <div id="auth-error" class="notice notice-error hidden" role="alert"></div>
+      <p class="auth-hint">Demo accounts: <strong>admin</strong> / admin123 and <strong>student1</strong> / student123</p>
     </div>
-
-    <div class="auth-switch">
-      <button class="tab active" id="show-login">Log in</button>
-      <button class="tab" id="show-register">Sign up</button>
-    </div>
-
-    <form id="login-form">
-      <label>Username
-        <input type="text" id="l-username" autocomplete="username" required>
-      </label>
-      <label>Password
-        <input type="password" id="l-password" autocomplete="current-password" required>
-      </label>
-      <button type="submit" class="btn-primary">Log in</button>
-    </form>
-
-    <form id="register-form" class="hidden">
-      <label>Full Name
-        <input type="text" id="r-fullname" autocomplete="name" required>
-      </label>
-      <label>Username
-        <input type="text" id="r-username" autocomplete="username" placeholder="letters, digits, _ or ." required>
-      </label>
-      <label>Password
-        <input type="password" id="r-password" autocomplete="new-password" placeholder="at least 6 characters" required>
-      </label>
-      <button type="submit" class="btn-primary">Create student account</button>
-    </form>
-
-    <div id="auth-error" class="result-box error hidden"></div>
-    <p class="hint auth-hint">Demo accounts: <strong>admin</strong> / admin123 &middot; <strong>student1</strong> / student123</p>
-  </div>
+  </section>
 </div>
 
 <!-- ===================== MAIN APP (shown after login) ===================== -->
-<div id="app" class="hidden">
+<div id="app" class="shell hidden">
 
-<header class="topbar">
-  <div class="brand">
-    <span class="brand-mark">P</span>
-    <div>
-      <h1>Smart Campus Parking</h1>
-      <p>&amp; Vehicle Finder</p>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">P</span>
+      <span class="brand-name">Smart Campus<br>Parking</span>
     </div>
+
+    <nav class="nav" id="tabs" aria-label="Main">
+      <button class="nav-item active" data-view="overview"><svg class="ico"><use href="#i-grid"/></svg><span>Overview</span></button>
+      <button class="nav-item" data-view="live"><svg class="ico"><use href="#i-car"/></svg><span>Live parking</span></button>
+      <button class="nav-item" data-view="park"><svg class="ico"><use href="#i-parking"/></svg><span>Park a vehicle</span></button>
+      <button class="nav-item" data-view="finder"><svg class="ico"><use href="#i-search"/></svg><span>Find my vehicle</span></button>
+      <button class="nav-item" data-view="reports"><svg class="ico"><use href="#i-chart"/></svg><span>Reports</span></button>
+      <button class="nav-item admin-only hidden" data-view="manage"><svg class="ico"><use href="#i-sliders"/></svg><span>Manage slots</span></button>
+    </nav>
+
+    <div class="side-user">
+      <div class="avatar" id="avatar">A</div>
+      <div class="side-user-text">
+        <div class="side-user-name" id="user-name"></div>
+        <div class="side-user-role" id="user-role"></div>
+      </div>
+      <button class="icon-btn" id="logout-btn" title="Log out" aria-label="Log out"><svg class="ico"><use href="#i-logout"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="content">
+    <header class="page-head">
+      <div>
+        <h1 id="page-title">Overview</h1>
+        <p id="page-sub"></p>
+      </div>
+      <div class="today" id="today"></div>
+    </header>
+
+    <main>
+
+      <!-- ===================== OVERVIEW ===================== -->
+      <section class="view active" id="view-overview">
+        <div class="stat-row" id="stat-row"></div>
+
+        <div class="split">
+          <div class="card">
+            <div class="card-head"><h2>Parking zones</h2><button class="link-btn" data-goto="live">View all slots</button></div>
+            <div class="zone-grid" id="zone-grid"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Recent activity</h2><button class="link-btn" data-goto="reports">View history</button></div>
+            <ul class="activity" id="activity"></ul>
+          </div>
+        </div>
+
+        <div class="split split-wide">
+          <div class="card">
+            <div class="card-head"><h2 id="parked-title">Parked now</h2><button class="btn btn-ghost btn-sm" id="refresh-parked">Refresh</button></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Vehicle</th><th>Slot</th><th>Location</th><th>Entry time</th><th>Parked for</th><th></th></tr></thead>
+                <tbody id="parked-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Vehicles by type</h2></div>
+            <div class="donut-wrap" id="donut"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== LIVE PARKING ===================== -->
+      <section class="view" id="view-live">
+        <div class="card toolbar">
+          <label class="tool">Vehicle type
+            <select id="slot-filter">
+              <option value="">All types</option>
+              <option value="CAR">Car</option>
+              <option value="BIKE">Bike</option>
+              <option value="BUS">Bus</option>
+              <option value="EV">EV</option>
+            </select>
+          </label>
+          <label class="tool">Status
+            <select id="status-filter">
+              <option value="">All</option>
+              <option value="free">Free</option>
+              <option value="busy">Occupied</option>
+            </select>
+          </label>
+          <label class="tool tool-grow">Find a slot
+            <input type="search" id="slot-search" placeholder="e.g. A-04">
+          </label>
+          <div class="legend">
+            <span><i class="dot dot-free"></i>Free</span>
+            <span><i class="dot dot-busy"></i>Occupied</span>
+          </div>
+        </div>
+        <div id="live-zones"></div>
+      </section>
+
+      <!-- ===================== PARK A VEHICLE ===================== -->
+      <section class="view" id="view-park">
+        <div class="form-layout">
+          <div class="card">
+            <div class="card-head"><h2>Vehicle details</h2></div>
+            <form id="park-form">
+              <label>Vehicle number
+                <input type="text" id="p-number" placeholder="e.g. WB24AB1042" required>
+              </label>
+
+              <fieldset class="seg-field">
+                <legend>Vehicle type</legend>
+                <div class="seg" id="p-type">
+                  <label><input type="radio" name="vtype" value="CAR" checked><span>Car</span></label>
+                  <label><input type="radio" name="vtype" value="BIKE"><span>Bike</span></label>
+                  <label><input type="radio" name="vtype" value="BUS"><span>Bus</span></label>
+                  <label><input type="radio" name="vtype" value="EV"><span>EV</span></label>
+                </div>
+              </fieldset>
+
+              <div class="two-col">
+                <label>Owner name <span class="optional">(optional, defaults to your name)</span>
+                  <input type="text" id="p-owner" placeholder="e.g. Rohan Sharma">
+                </label>
+                <label>Owner contact
+                  <input type="text" id="p-contact" placeholder="e.g. 9876543210">
+                </label>
+              </div>
+
+              <button type="submit" class="btn btn-primary">Allocate a slot and park</button>
+            </form>
+            <div id="park-result" class="notice hidden"></div>
+          </div>
+
+          <aside class="card side-note">
+            <div class="card-head"><h2>Parking rates</h2></div>
+            <ul class="rate-list" id="rates-box"></ul>
+            <p class="muted">Charged for every started hour, with a minimum of one hour. The fee is shown when you leave.</p>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===================== VEHICLE FINDER ===================== -->
+      <section class="view" id="view-finder">
+        <div class="card">
+          <form id="find-form" class="search-row">
+            <label class="grow">Vehicle number
+              <input type="text" id="f-number" placeholder="Enter your registration number, e.g. WB24AB1042" required>
+            </label>
+            <button type="submit" class="btn btn-primary">Locate vehicle</button>
+          </form>
+        </div>
+        <div id="find-result" class="find-result"></div>
+      </section>
+
+      <!-- ===================== REPORTS ===================== -->
+      <section class="view" id="view-reports">
+        <div class="stat-row" id="report-stats"></div>
+
+        <div class="split split-even">
+          <div class="card">
+            <div class="card-head"><h2 id="type-title">Occupancy by vehicle type</h2><button class="btn btn-ghost btn-sm" id="refresh-report">Refresh</button></div>
+            <div class="bars" id="report-grid"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2 id="hour-title">Arrivals today, by hour</h2></div>
+            <div class="bars bars-hours" id="hour-chart"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2 id="history-title">Parking history</h2></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Vehicle</th><th>Slot</th><th>Entry</th><th>Exit</th><th>Duration</th><th class="num">Fee</th></tr></thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== MANAGE SLOTS (admin only) ===================== -->
+      <section class="view" id="view-manage">
+        <div class="stat-row stat-row-3" id="revenue-row"></div>
+
+        <div class="card">
+          <div class="card-head"><h2>Add a parking slot</h2></div>
+          <form id="slot-form" class="inline-form">
+            <label>Slot number
+              <input type="text" id="s-number" placeholder="e.g. A-07" required>
+            </label>
+            <label>Vehicle type
+              <select id="s-type" required>
+                <option value="CAR">Car</option>
+                <option value="BIKE">Bike</option>
+                <option value="BUS">Bus</option>
+                <option value="EV">EV</option>
+              </select>
+            </label>
+            <label class="grow">Location
+              <input type="text" id="s-location" placeholder="e.g. Block A - Ground Floor" required>
+            </label>
+            <button type="submit" class="btn btn-primary"><svg class="ico"><use href="#i-plus"/></svg>Add slot</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>All slots</h2><button class="btn btn-ghost btn-sm" id="refresh-manage">Refresh</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Slot</th><th>Type</th><th>Location</th><th>Status</th><th></th></tr></thead>
+              <tbody id="manage-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
   </div>
-  <nav class="tabs" id="tabs">
-    <button class="tab active" data-view="dashboard">Dashboard</button>
-    <button class="tab" data-view="park">Park a Vehicle</button>
-    <button class="tab" data-view="finder">Find my Vehicle</button>
-    <button class="tab" data-view="report">Occupancy Report</button>
-    <button class="tab admin-only hidden" data-view="manage">Manage Slots</button>
-  </nav>
-  <div class="user-chip">
-    <span id="user-name"></span>
-    <span class="role-badge" id="user-role"></span>
-    <button class="btn-ghost" id="logout-btn">Log out</button>
-  </div>
-</header>
-
-<main>
-
-  <!-- ===================== DASHBOARD ===================== -->
-  <section class="view active" id="view-dashboard">
-    <div class="stat-row" id="stat-row"></div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Parking Slots</h2>
-        <select id="slot-filter">
-          <option value="">All types</option>
-          <option value="CAR">Car</option>
-          <option value="BIKE">Bike</option>
-          <option value="BUS">Bus</option>
-          <option value="EV">EV</option>
-        </select>
-      </div>
-      <div class="slot-grid" id="slot-grid"></div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2 id="parked-title">Currently Parked</h2>
-        <button class="btn-ghost" id="refresh-parked">Refresh</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Vehicle No.</th><th>Slot</th><th>Location</th><th>Entry Time</th><th>Parked For</th><th></th></tr>
-          </thead>
-          <tbody id="parked-body"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===================== PARK A VEHICLE ===================== -->
-  <section class="view" id="view-park">
-    <div class="panel narrow">
-      <h2>Park a Vehicle</h2>
-      <p class="hint">A free slot matching the vehicle type is allocated automatically.</p>
-      <div class="rates-box" id="rates-box"></div>
-      <form id="park-form">
-        <label>Vehicle Number
-          <input type="text" id="p-number" placeholder="e.g. KA01AB1234" required>
-        </label>
-        <label>Vehicle Type
-          <select id="p-type" required>
-            <option value="CAR">Car</option>
-            <option value="BIKE">Bike</option>
-            <option value="BUS">Bus</option>
-            <option value="EV">EV</option>
-          </select>
-        </label>
-        <label>Owner Name <span class="optional">(optional &ndash; defaults to your name)</span>
-          <input type="text" id="p-owner" placeholder="e.g. Rohan Sharma">
-        </label>
-        <label>Owner Contact
-          <input type="text" id="p-contact" placeholder="e.g. 9876543210">
-        </label>
-        <button type="submit" class="btn-primary">Allocate Slot &amp; Park</button>
-      </form>
-      <div id="park-result" class="result-box hidden"></div>
-    </div>
-  </section>
-
-  <!-- ===================== VEHICLE FINDER ===================== -->
-  <section class="view" id="view-finder">
-    <div class="panel narrow">
-      <h2>Find my Vehicle</h2>
-      <p class="hint">Enter your vehicle number to see exactly where it's parked, or to leave and see your fee.</p>
-      <form id="find-form">
-        <label>Vehicle Number
-          <input type="text" id="f-number" placeholder="e.g. KA01AB1234" required>
-        </label>
-        <button type="submit" class="btn-primary">Locate Vehicle</button>
-      </form>
-      <div id="find-result" class="result-box hidden"></div>
-    </div>
-  </section>
-
-  <!-- ===================== OCCUPANCY REPORT ===================== -->
-  <section class="view" id="view-report">
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Occupancy Report</h2>
-        <button class="btn-ghost" id="refresh-report">Refresh</button>
-      </div>
-      <div class="report-grid" id="report-grid"></div>
-    </div>
-
-    <div class="panel">
-      <h2 id="history-title">Recent History</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Vehicle No.</th><th>Slot</th><th>Entry</th><th>Exit</th><th>Duration</th><th>Fee</th></tr>
-          </thead>
-          <tbody id="history-body"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===================== MANAGE SLOTS (admin only) ===================== -->
-  <section class="view" id="view-manage">
-    <div class="stat-row" id="revenue-row"></div>
-
-    <div class="panel">
-      <h2>Add a Parking Slot</h2>
-      <form id="slot-form" class="inline-form">
-        <label>Slot Number
-          <input type="text" id="s-number" placeholder="e.g. A-04" required>
-        </label>
-        <label>Vehicle Type
-          <select id="s-type" required>
-            <option value="CAR">Car</option>
-            <option value="BIKE">Bike</option>
-            <option value="BUS">Bus</option>
-            <option value="EV">EV</option>
-          </select>
-        </label>
-        <label>Location
-          <input type="text" id="s-location" placeholder="e.g. Block A - Ground Floor" required>
-        </label>
-        <button type="submit" class="btn-primary">Add Slot</button>
-      </form>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head">
-        <h2>All Slots</h2>
-        <button class="btn-ghost" id="refresh-manage">Refresh</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Slot</th><th>Type</th><th>Location</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody id="manage-body"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-</main>
 </div>
 
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="status"></div>
 
 <script src="/js/app.js"></script>
 </body>

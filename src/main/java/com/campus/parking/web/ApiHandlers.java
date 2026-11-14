@@ -33,7 +33,7 @@ import java.util.Optional;
  *   GET  /api/locate?vehicleNumber=..
  *   GET  /api/parked                   -> students: their own vehicles; admins: everything
  *   GET  /api/history?limit=20         -> same scoping as /api/parked
- *   GET  /api/report                   -> occupancy report
+ *   GET  /api/report                   -> occupancy report (admin only)
  *   GET  /api/rates                    -> hourly rate per vehicle type
  * Admin only:
  *   POST   /api/admin/slots            -> { slotNumber, vehicleType, location }
@@ -291,7 +291,7 @@ public class ApiHandlers {
                 return;
             }
             safely(exchange, () -> {
-                SessionManager.requireLogin(exchange);
+                SessionManager.requireAdmin(exchange);
                 var report = SERVICE.occupancyReport();
                 JsonUtil.JsonObject out = new JsonUtil.JsonObject();
                 int totalSlots = 0, totalOccupied = 0;
