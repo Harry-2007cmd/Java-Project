@@ -92,7 +92,7 @@
       <button class="nav-item" data-view="live"><svg class="ico"><use href="#i-car"/></svg><span>Live parking</span></button>
       <button class="nav-item" data-view="park"><svg class="ico"><use href="#i-parking"/></svg><span>Park a vehicle</span></button>
       <button class="nav-item" data-view="finder"><svg class="ico"><use href="#i-search"/></svg><span>Find my vehicle</span></button>
-      <button class="nav-item admin-only hidden" data-view="reports"><svg class="ico"><use href="#i-chart"/></svg><span>Reports</span></button>
+      <button class="nav-item" data-view="reports"><svg class="ico"><use href="#i-chart"/></svg><span>Reports</span></button>
       <button class="nav-item admin-only hidden" data-view="manage"><svg class="ico"><use href="#i-sliders"/></svg><span>Manage slots</span></button>
     </nav>
 
@@ -127,7 +127,7 @@
             <div class="zone-grid" id="zone-grid"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h2>Recent activity</h2><button class="link-btn admin-only hidden" data-goto="reports">View history</button></div>
+            <div class="card-head"><h2>Recent activity</h2><button class="link-btn" data-goto="reports">View history</button></div>
             <ul class="activity" id="activity"></ul>
           </div>
         </div>
@@ -240,11 +240,11 @@
 
         <div class="split split-even">
           <div class="card">
-            <div class="card-head"><h2>Occupancy by vehicle type</h2><button class="btn btn-ghost btn-sm" id="refresh-report">Refresh</button></div>
+            <div class="card-head"><h2 id="type-title">Occupancy by vehicle type</h2><button class="btn btn-ghost btn-sm" id="refresh-report">Refresh</button></div>
             <div class="bars" id="report-grid"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h2>Arrivals today, by hour</h2></div>
+            <div class="card-head"><h2 id="hour-title">Arrivals today, by hour</h2></div>
             <div class="bars bars-hours" id="hour-chart"></div>
           </div>
         </div>

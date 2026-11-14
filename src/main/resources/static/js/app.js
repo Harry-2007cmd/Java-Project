@@ -199,12 +199,12 @@ const VIEWS = {
   live: { title: () => "Live parking", sub: () => "Every slot on campus. Select a free slot to park that type of vehicle.", load: () => loadLive() },
   park: { title: () => "Park a vehicle", sub: () => "A free slot that matches the vehicle type is allocated automatically.", load: () => {} },
   finder: { title: () => "Find my vehicle", sub: () => "See where a vehicle is parked, or leave and see the fee.", load: () => {} },
-  reports: { title: () => "Reports", sub: () => "Occupancy, arrivals and parking history.", load: () => loadReports() },
+  reports: { title: () => "Reports", sub: () => (isAdmin() ? "Occupancy, arrivals and parking history." : "Your parking visits, time parked and fees."), load: () => loadReports() },
   manage: { title: () => "Manage slots", sub: () => "Add or remove parking slots and see the fees collected.", load: () => loadManage() },
 };
 
 function navigate(name) {
-  if ((name === "manage" || name === "reports") && !isAdmin()) name = "overview";
+  if (name === "manage" && !isAdmin()) name = "overview";
   const view = VIEWS[name];
   document.querySelectorAll("#tabs .nav-item").forEach((b) => {
     const on = b.dataset.view === name;
@@ -516,27 +516,68 @@ $("find-form").addEventListener("submit", async (e) => {
 
 async function loadReports() {
   try {
-    const [report, history, revenue] = await Promise.all([
-      api.report(),
-      api.history(200),
-      isAdmin() ? api.revenue() : Promise.resolve(null),
-    ]);
-
-    const overall = report.OVERALL;
-    const parkedNow = history.filter((r) => r.active).length;
-    const fees = revenue ? revenue.totalRevenue : history.reduce((sum, r) => sum + Number(r.feeAmount || 0), 0);
-    $("report-stats").innerHTML =
-      statCard("purple", "pie", "Overall occupancy", overall.occupancyPercent + "%") +
-      statCard("green", "check", "Free slots", overall.availableSlots) +
-      statCard("blue", "car", isAdmin() ? "Vehicles parked now" : "My vehicles parked", parkedNow) +
-      statCard("amber", "rupee", isAdmin() ? "Fees collected" : "Fees paid", money(fees));
-
-    renderTypeBars(report);
-    renderHourChart(history);
-    renderHistory(history);
+    $("type-title").textContent = isAdmin() ? "Occupancy by vehicle type" : "My visits by vehicle type";
+    $("hour-title").textContent = isAdmin() ? "Arrivals today, by hour" : "My arrivals today, by hour";
+    if (isAdmin()) {
+      const [report, history, revenue] = await Promise.all([api.report(), api.history(200), api.revenue()]);
+      const overall = report.OVERALL;
+      const parkedNow = history.filter((r) => r.active).length;
+      $("report-stats").innerHTML =
+        statCard("purple", "pie", "Overall occupancy", overall.occupancyPercent + "%") +
+        statCard("green", "check", "Free slots", overall.availableSlots) +
+        statCard("blue", "car", "Vehicles parked now", parkedNow) +
+        statCard("amber", "rupee", "Fees collected", money(revenue.totalRevenue));
+      renderTypeBars(report);
+      renderHourChart(history);
+      renderHistory(history);
+    } else {
+      // Students only get figures about their own vehicles (the history API is already scoped to them).
+      const [slots, history] = await Promise.all([api.slots(), api.history(200)]);
+      const parkedNow = history.filter((r) => r.active).length;
+      const minutes = history.reduce((sum, r) => sum + Number(r.durationMinutes || 0), 0);
+      const fees = history.reduce((sum, r) => sum + Number(r.feeAmount || 0), 0);
+      $("report-stats").innerHTML =
+        statCard("blue", "car", "My vehicles parked now", parkedNow) +
+        statCard("purple", "pie", "My total visits", history.length) +
+        statCard("green", "clock", "Time parked", fmtMinutes(minutes)) +
+        statCard("amber", "rupee", "Fees paid", money(fees));
+      renderMyTypeBars(history, slots);
+      renderHourChart(history);
+      renderHistory(history);
+    }
   } catch (e) {
     handleError(e);
   }
+}
+
+function fmtMinutes(total) {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+
+function renderMyTypeBars(history, slots) {
+  const typeOfSlot = {};
+  slots.forEach((s) => { typeOfSlot[s.slotNumber] = s.vehicleType; });
+  const counts = {};
+  history.forEach((r) => {
+    const t = typeOfSlot[r.slotNumber];
+    if (t) counts[t] = (counts[t] || 0) + 1;
+  });
+  const types = Object.keys(counts);
+  if (types.length === 0) {
+    $("report-grid").innerHTML = `<div class="chart-empty">No visits yet.</div>`;
+    return;
+  }
+  const max = Math.max(...Object.values(counts));
+  $("report-grid").innerHTML = types
+    .map((t) => `<div class="bar-col">
+        <div class="bar-value">${counts[t]}</div>
+        <div class="bar-track"><div class="bar-fill" style="height:${Math.max(8, (counts[t] / max) * 100)}%;background:${TYPE_COLOR[t] || "#999"}"></div></div>
+        <div class="bar-label">${esc(typeLabel(t))}</div>
+        <div class="bar-sub">${counts[t] === 1 ? "1 visit" : counts[t] + " visits"}</div>
+      </div>`)
+    .join("");
 }
 
 function renderTypeBars(report) {
