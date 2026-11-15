@@ -15,7 +15,9 @@ DROP TABLE IF EXISTS parking_rates;
 DROP TABLE IF EXISTS users;
 
 -- ------------------------------------------------------------
--- users: student and admin accounts
+-- users: student, faculty and admin accounts
+-- email is collected at sign-up; roll_no is for students only (NULL for
+-- faculty/admins). UNIQUE allows many NULLs, so accounts without them are fine.
 -- ------------------------------------------------------------
 CREATE TABLE users (
     user_id        INT AUTO_INCREMENT PRIMARY KEY,
@@ -23,7 +25,9 @@ CREATE TABLE users (
     password_hash  VARCHAR(64)  NOT NULL,   -- PBKDF2WithHmacSHA256, hex-encoded
     salt           VARCHAR(32)  NOT NULL,   -- hex-encoded random salt, unique per user
     full_name      VARCHAR(100) NOT NULL,
-    role           ENUM('STUDENT', 'ADMIN') NOT NULL DEFAULT 'STUDENT'
+    role           ENUM('STUDENT', 'ADMIN', 'FACULTY') NOT NULL DEFAULT 'STUDENT',
+    email          VARCHAR(100) NULL UNIQUE,
+    roll_no        VARCHAR(30)  NULL UNIQUE
 );
 
 -- ------------------------------------------------------------
@@ -99,8 +103,10 @@ INSERT INTO parking_rates (vehicle_type, rate_per_hour) VALUES
 -- Demo accounts so you can log in immediately:
 --   admin    / admin123   (role ADMIN)
 --   student1 / student123 (role STUDENT)
+--   faculty1 / faculty123 (role FACULTY)
 -- (password_hash/salt below are real PBKDF2WithHmacSHA256 values generated
 -- with com.campus.parking.util.AuthUtil - not placeholders)
-INSERT INTO users (username, password_hash, salt, full_name, role) VALUES
-('admin',    'c3462c9c28de8bf6a933cf5d29eaf174deb7ec07dcd114b953e579c2370c60ff', 'e7d2c9b0eda668e480a03d19fe8d7168', 'Campus Admin', 'ADMIN'),
-('student1', 'eee4ecc95841f8740e7cc1a2ab26a788e1c39ba13275dc8967d28d164d8fa02e', '4f5bf1186acdcdacc11417ba28dab9f1', 'Demo Student', 'STUDENT');
+INSERT INTO users (username, password_hash, salt, full_name, role, email, roll_no) VALUES
+('admin',    'c3462c9c28de8bf6a933cf5d29eaf174deb7ec07dcd114b953e579c2370c60ff', 'e7d2c9b0eda668e480a03d19fe8d7168', 'Campus Admin', 'ADMIN',   NULL, NULL),
+('student1', 'eee4ecc95841f8740e7cc1a2ab26a788e1c39ba13275dc8967d28d164d8fa02e', '4f5bf1186acdcdacc11417ba28dab9f1', 'Demo Student', 'STUDENT', 'student1@campus.edu', 'CS2024001'),
+('faculty1', 'e65a42002cb6ec9144db72937771d204623acac9f25502561e1e3147f8a72517', 'c2c77080be8cfa697818572295498730', 'Demo Faculty', 'FACULTY', 'faculty1@campus.edu', NULL);

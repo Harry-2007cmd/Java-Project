@@ -9,8 +9,10 @@ students locate their parked vehicles.
 - Store parking location and vehicle details
 - Calculate how long a vehicle has been / was parked
 - Generate occupancy reports (per vehicle type and overall)
-- **Login with two roles**: students see and manage only their own vehicles;
-  admins see everything and can add/delete parking slots and view total revenue
+- **Login with three roles**: students and faculty see and manage only their own
+  vehicles; admins see everything and can add/delete parking slots and view total revenue
+- **Sign-up for students and faculty**: pick Student or Faculty, give a name, email,
+  username and password (students also give a roll number)
 - **Billing by duration**: a fee is calculated when a vehicle leaves
 
 ### Demo accounts
@@ -19,9 +21,23 @@ students locate their parked vehicles.
 |------------|--------------|---------|
 | `admin`    | `admin123`   | ADMIN   |
 | `student1` | `student123` | STUDENT |
+| `faculty1` | `faculty123` | FACULTY |
 
-New students can also sign up from the login screen (sign-up always creates a
-STUDENT; admins are created directly in the database).
+New students and faculty can sign up from the login screen. Sign-up only ever
+creates a STUDENT or FACULTY account (the server rejects anything else); admins
+are created directly in the database.
+
+| Sign-up field | Student | Faculty | Rules |
+|---------------|:-------:|:-------:|-------|
+| Full name     | yes     | yes     | up to 100 characters |
+| Email         | yes     | yes     | valid address, unique (case-insensitive) |
+| Roll no       | yes     | -       | 3-30 characters: letters, digits, `-`, `/`, `_`; unique |
+| Username      | yes     | yes     | 3-30 characters: letters, digits, `_`, `.`; unique |
+| Password      | yes     | yes     | at least 6 characters (confirmed on the form) |
+
+On the login screen, "Remember me" only remembers the username in the browser
+(never the password). "Forgot Password?" and "Continue with Google" are part of
+the design but not connected to a backend yet, so they just show a message.
 
 ### Billing rule
 
@@ -36,8 +52,8 @@ the parking record when the vehicle exits.
   password is hashed with PBKDF2-HMAC-SHA256 (`AuthUtil`).
 - Login sessions are kept in server memory and identified by a random cookie,
   so restarting the server logs everyone out.
-- A student cannot see, find or un-park another student's vehicle; the server
-  enforces this, not just the UI.
+- A student or faculty member cannot see, find or un-park anyone else's vehicle;
+  the server enforces this, not just the UI.
 - Everything shown in the web page is HTML-escaped.
 
 ## Tech stack
@@ -62,12 +78,14 @@ src/main/java/com/campus/parking/
   model/      Vehicle, ParkingSlot, ParkingRecord, VehicleType, User, Role
   dao/        JDBC data-access classes (one per table)
   service/    ParkingService (allocation, billing, reports), AuthService (login, sign-up)
-  util/       DBConnection (JDBC connection helper), AuthUtil (password hashing)
+  util/       DBConnection (JDBC connection helper), AuthUtil (password hashing),
+              SchemaMigrator (upgrades an older users table automatically)
   web/        Server, ApiHandlers, SessionManager, StaticFileHandler, JsonUtil (REST API + static file server)
   ConsoleApp.java   Text-menu version of the app (same service layer)
 
 src/main/resources/
-  db/schema.sql     MySQL schema + seed data
+  db/schema.sql     MySQL schema + seed data (wipes and recreates the tables)
+  db/migrate_signup.sql  Optional manual upgrade of an existing database (keeps your data)
   db.properties.example  Template for db.properties (copy it; db.properties is git-ignored)
   static/           The HTML/CSS/JS frontend
 ```
@@ -99,10 +117,18 @@ This creates the `campus_parking` database and its five tables (users, parking
 slots, parking rates, vehicles, parking records), plus 10 sample parking slots,
 the billing rates and the two demo accounts.
 
-> **Updating from an earlier version?** The schema changed (login + billing), so
-> run `schema.sql` again. It drops and recreates the tables, so any parking data
-> you entered before is wiped. You can also open it in MySQL Workbench
-> (File > Open SQL Script) and press the lightning-bolt Execute button.
+> **Updating from an earlier version?**
+> - *From the version with login + billing:* nothing to do. The app adds the new
+>   `email` / `roll_no` columns and the `FACULTY` role to your existing `users`
+>   table by itself the first time it starts, and keeps all your data. (If your
+>   MySQL user may not `ALTER` tables, the app prints a warning; then run
+>   `src/main/resources/db/migrate_signup.sql` once.) The demo `faculty1` account
+>   is only created by `schema.sql`; sign up a faculty account instead if you
+>   don't want to re-run it.
+> - *From anything older:* run `schema.sql` again. It drops and recreates the
+>   tables, so any parking data you entered before is wiped. You can also open it
+>   in MySQL Workbench (File > Open SQL Script) and press the lightning-bolt
+>   Execute button.
 
 ### 2. Configure the connection
 
@@ -150,21 +176,21 @@ It asks for a username and password first (use a demo account above).
 ## REST API reference
 
 Every endpoint except login/sign-up needs a logged-in session (cookie). Without
-one the API answers `401`; a student calling an admin endpoint gets `403`.
+one the API answers `401`; a student or faculty member calling an admin endpoint gets `403`.
 
 | Method | Endpoint                         | Who    | Description                              |
 |--------|-----------------------------------|--------|-------------------------------------------|
 | POST   | `/api/login`                     | anyone | `{username, password}` -> starts a session |
-| POST   | `/api/register`                  | anyone | `{username, password, fullName}` -> creates a STUDENT and logs in |
+| POST   | `/api/register`                  | anyone | `{role, fullName, email, username, password, rollNo}` -> creates a STUDENT or FACULTY account and logs in (`rollNo` required for students only; `ADMIN` is rejected) |
 | POST   | `/api/logout`                    | user   | Ends the session                           |
-| GET    | `/api/me`                        | user   | Who is logged in (name, role)              |
+| GET    | `/api/me`                        | user   | Who is logged in (username, name, role, email, roll no) |
 | GET    | `/api/slots`                     | user   | All parking slots                          |
 | GET    | `/api/slots?type=CAR`             | user   | Only free slots of that vehicle type       |
 | POST   | `/api/park`                      | user   | `{vehicleNumber, vehicleType, ownerName, ownerContact}` -> allocates a slot and parks the vehicle |
 | POST   | `/api/unpark`                    | user   | `{vehicleNumber}` -> ends the session, frees the slot, returns duration and fee |
-| GET    | `/api/locate?vehicleNumber=..`    | user   | Where a vehicle is parked (students: own vehicles only) |
-| GET    | `/api/parked`                    | user   | Currently parked (students: own vehicles only) |
-| GET    | `/api/history?limit=20`          | user   | Recent history with fees (students: own only) |
+| GET    | `/api/locate?vehicleNumber=..`    | user   | Where a vehicle is parked (students/faculty: own vehicles only) |
+| GET    | `/api/parked`                    | user   | Currently parked (students/faculty: own vehicles only) |
+| GET    | `/api/history?limit=20`          | user   | Recent history with fees (students/faculty: own only) |
 | GET    | `/api/report`                    | admin  | Occupancy report per vehicle type + overall|
 | GET    | `/api/rates`                     | user   | Hourly rate per vehicle type               |
 | POST   | `/api/admin/slots`               | admin  | `{slotNumber, vehicleType, location}` -> adds a slot |

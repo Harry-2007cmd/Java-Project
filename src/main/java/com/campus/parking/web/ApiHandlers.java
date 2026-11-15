@@ -23,15 +23,16 @@ import java.util.Optional;
  *
  * Public:
  *   POST /api/login                    -> { username, password }
- *   POST /api/register                 -> { username, password, fullName }   (creates a STUDENT)
+ *   POST /api/register                 -> { fullName, email, username, password, role, rollNo }
+ *                                         role is STUDENT or FACULTY (never ADMIN); rollNo is required for students only
  * Needs login:
  *   POST /api/logout
- *   GET  /api/me                       -> who am I (username, fullName, role)
+ *   GET  /api/me                       -> who am I (username, fullName, role, email, rollNo)
  *   GET  /api/slots[?type=CAR]         -> all slots / free slots of a type
  *   POST /api/park                     -> { vehicleNumber, vehicleType, ownerName, ownerContact }
  *   POST /api/unpark                   -> { vehicleNumber }  (returns duration + fee)
  *   GET  /api/locate?vehicleNumber=..
- *   GET  /api/parked                   -> students: their own vehicles; admins: everything
+ *   GET  /api/parked                   -> students/faculty: their own vehicles; admins: everything
  *   GET  /api/history?limit=20         -> same scoping as /api/parked
  *   GET  /api/report                   -> occupancy report (admin only)
  *   GET  /api/rates                    -> hourly rate per vehicle type
@@ -81,7 +82,7 @@ public class ApiHandlers {
         void run() throws Exception;
     }
 
-    /** null for an admin (no restriction), the student's own id otherwise. */
+    /** null for an admin (no restriction), the student's or faculty member's own id otherwise. */
     private static Integer scopeOf(Session s) {
         return s.isAdmin() ? null : s.userId();
     }
@@ -91,7 +92,9 @@ public class ApiHandlers {
                 .put("userId", s.userId())
                 .put("username", s.username())
                 .put("fullName", s.fullName())
-                .put("role", s.role().name());
+                .put("role", s.role().name())
+                .put("email", s.email())
+                .put("rollNo", s.rollNo());
     }
 
     // =====================================================================
@@ -123,11 +126,14 @@ public class ApiHandlers {
             }
             safely(exchange, () -> {
                 Map<String, String> body = JsonUtil.readBody(exchange);
-                User user = AUTH.registerStudent(
+                User user = AUTH.register(
                         body.getOrDefault("username", ""),
                         body.getOrDefault("password", ""),
-                        body.getOrDefault("fullName", ""));
-                // Log the new student straight in.
+                        body.getOrDefault("fullName", ""),
+                        body.getOrDefault("email", ""),
+                        body.getOrDefault("role", ""),
+                        body.getOrDefault("rollNo", ""));
+                // Log the new account straight in.
                 Session session = SessionManager.login(exchange, user);
                 JsonUtil.sendJson(exchange, 201, userJson(session));
             });

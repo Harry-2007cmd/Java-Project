@@ -1,6 +1,6 @@
 package com.campus.parking.model;
 
-/** A student or admin account. The password hash and salt never leave the DAO/auth layer. */
+/** A student, faculty or admin account. The password hash and salt never leave the DAO/auth layer. */
 public class User {
     private int userId;
     private String username;
@@ -8,17 +8,26 @@ public class User {
     private String salt;
     private String fullName;
     private Role role;
+    private String email;    // null for accounts created before email was collected (e.g. the demo accounts)
+    private String rollNo;   // students only; null for faculty and admins
 
     public User() {
     }
 
     public User(int userId, String username, String passwordHash, String salt, String fullName, Role role) {
+        this(userId, username, passwordHash, salt, fullName, role, null, null);
+    }
+
+    public User(int userId, String username, String passwordHash, String salt, String fullName, Role role,
+                String email, String rollNo) {
         this.userId = userId;
         this.username = username;
         this.passwordHash = passwordHash;
         this.salt = salt;
         this.fullName = fullName;
         this.role = role;
+        this.email = email;
+        this.rollNo = rollNo;
     }
 
     public int getUserId() {
@@ -67,6 +76,22 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getRollNo() {
+        return rollNo;
+    }
+
+    public void setRollNo(String rollNo) {
+        this.rollNo = rollNo;
     }
 
     public boolean isAdmin() {

@@ -25,7 +25,7 @@ const post = (url, payload) =>
 const api = {
   me: () => fetch("/api/me").then(toJson),
   login: (username, password) => post("/api/login", { username, password }),
-  register: (username, password, fullName) => post("/api/register", { username, password, fullName }),
+  register: (payload) => post("/api/register", payload),   // { fullName, email, username, password, role, rollNo }
   logout: () => post("/api/logout"),
   slots: () => fetch("/api/slots").then(toJson),
   rates: () => fetch("/api/rates").then(toJson),
@@ -107,10 +107,29 @@ const isAdmin = () => currentUser && currentUser.role === "ADMIN";
 // Login / sign up / logout
 // ============================================================
 
+const REMEMBER_KEY = "scp.rememberedUsername";   // only the username is remembered, never the password
+const EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
+const USERNAME_RE = /^[A-Za-z0-9_.]{3,30}$/;
+const ROLL_NO_RE = /^[A-Za-z0-9\/_\-]{3,30}$/;
+
+const ROLE_LABEL = { ADMIN: "Administrator", FACULTY: "Faculty", STUDENT: "Student" };
+const roleLabel = (user) => ROLE_LABEL[user.role] || "Student";
+
+// localStorage can be unavailable (private mode, blocked cookies), so every access is guarded.
+function readRemembered() {
+  try { return localStorage.getItem(REMEMBER_KEY) || ""; } catch (e) { return ""; }
+}
+function writeRemembered(username) {
+  try {
+    if (username) localStorage.setItem(REMEMBER_KEY, username); else localStorage.removeItem(REMEMBER_KEY);
+  } catch (e) { /* not fatal */ }
+}
+
 function showAuth() {
   currentUser = null;
   $("app").classList.add("hidden");
   $("auth-screen").classList.remove("hidden");
+  resetAuthForms();
   setAuthMode("login");   // always start on the log-in tab, e.g. after a session expires
 }
 
@@ -120,7 +139,12 @@ function showApp(user) {
   $("app").classList.remove("hidden");
 
   $("user-name").textContent = user.fullName;
-  $("user-role").textContent = isAdmin() ? "Administrator" : "Student";
+  $("user-name").title = user.email || "";
+  $("user-role").textContent = roleLabel(user);
+  // Students also see their roll number (accounts made before roll numbers existed just don't have one).
+  const roll = user.role === "STUDENT" && user.rollNo ? "Roll no " + user.rollNo : "";
+  $("user-roll").textContent = roll;
+  $("user-roll").classList.toggle("hidden", !roll);
   $("avatar").textContent = (user.fullName || user.username || "?").trim().charAt(0).toUpperCase();
   $("today").textContent = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   document.querySelectorAll(".admin-only").forEach((el) => el.classList.toggle("hidden", !isAdmin()));
@@ -131,16 +155,59 @@ function showApp(user) {
   loadRates();
 }
 
+function resetAuthForms() {
+  $("login-form").reset();
+  $("register-form").reset();
+  setSignupRole("STUDENT");
+  document.querySelectorAll(".pw-toggle").forEach((btn) => setPasswordVisible(btn, false));
+  const remembered = readRemembered();
+  if (remembered) {
+    $("l-username").value = remembered;
+    $("l-remember").checked = true;
+  }
+}
+
 function setAuthMode(mode) {
   const login = mode === "login";
   $("login-form").classList.toggle("hidden", !login);
   $("register-form").classList.toggle("hidden", login);
+  $("foot-login").classList.toggle("hidden", !login);
+  $("foot-register").classList.toggle("hidden", login);
+  $("auth-hint").classList.toggle("hidden", !login);
   $("show-login").classList.toggle("active", login);
   $("show-register").classList.toggle("active", !login);
+  $("show-login").setAttribute("aria-selected", String(login));
+  $("show-register").setAttribute("aria-selected", String(!login));
+  $("auth-title").textContent = login ? "Welcome Back!" : "Create Your Account";
+  $("auth-sub").textContent = login ? "Sign in to your Smart Campus Parking account" : "Join Smart Campus Parking today";
   $("auth-error").classList.add("hidden");
 }
-$("show-login").addEventListener("click", () => setAuthMode("login"));
-$("show-register").addEventListener("click", () => setAuthMode("register"));
+document.querySelectorAll("[data-auth-mode]").forEach((el) => el.addEventListener("click", () => setAuthMode(el.dataset.authMode)));
+
+// Student / Faculty switch: faculty have no roll number, so that field disappears (and is not submitted).
+function setSignupRole(role) {
+  const student = role !== "FACULTY";
+  const radio = document.querySelector(`input[name="r-role"][value="${student ? "STUDENT" : "FACULTY"}"]`);
+  if (radio) radio.checked = true;
+  $("r-roll-field").classList.toggle("hidden", !student);
+  $("r-rollno").disabled = !student;
+  if (!student) $("r-rollno").value = "";
+}
+document.querySelectorAll('input[name="r-role"]').forEach((radio) =>
+  radio.addEventListener("change", () => { setSignupRole(radio.value); $("auth-error").classList.add("hidden"); }));
+
+function setPasswordVisible(btn, visible) {
+  $(btn.dataset.target).type = visible ? "text" : "password";
+  btn.setAttribute("aria-pressed", String(visible));
+  btn.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+  btn.querySelector("use").setAttribute("href", visible ? "#i-eye-off" : "#i-eye");
+}
+document.querySelectorAll(".pw-toggle").forEach((btn) =>
+  btn.addEventListener("click", () => setPasswordVisible(btn, btn.getAttribute("aria-pressed") !== "true")));
+
+// These two are not wired to a backend yet, so say so instead of silently doing nothing.
+$("forgot-btn").addEventListener("click", () => showToast("Password reset isn't available yet. Please ask the campus admin to reset it.", "info"));
+$("google-btn").addEventListener("click", () => showToast("Google sign-in isn't set up yet. Please log in with your username and password.", "info"));
 
 function showAuthError(message) {
   const box = $("auth-error");
@@ -148,26 +215,70 @@ function showAuthError(message) {
   box.classList.remove("hidden");
 }
 
-$("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
+// Show a validation message and put the cursor in the field that needs fixing.
+function failField(inputId, message) {
+  showAuthError(message);
+  $(inputId).focus();
+}
+
+// Disables the submit button while a request is in flight so a double click can't send it twice.
+async function withBusy(form, work) {
+  const btn = form.querySelector('button[type="submit"]');
+  btn.disabled = true;
   try {
-    const user = await api.login($("l-username").value.trim(), $("l-password").value);
-    e.target.reset();
-    showApp(user);
-  } catch (err) {
-    showAuthError(err.message);
+    await work();
+  } finally {
+    btn.disabled = false;
   }
+}
+
+$("login-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const username = $("l-username").value.trim();
+  const password = $("l-password").value;
+  if (!username) return failField("l-username", "Enter your username");
+  if (!password) return failField("l-password", "Enter your password");
+  withBusy(e.target, async () => {
+    try {
+      const user = await api.login(username, password);
+      writeRemembered($("l-remember").checked ? username : "");
+      e.target.reset();
+      showApp(user);
+    } catch (err) {
+      showAuthError(err.message);
+    }
+  });
 });
 
-$("register-form").addEventListener("submit", async (e) => {
+$("register-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  try {
-    const user = await api.register($("r-username").value.trim(), $("r-password").value, $("r-fullname").value.trim());
-    e.target.reset();
-    showApp(user);
-  } catch (err) {
-    showAuthError(err.message);
-  }
+  const role = document.querySelector('input[name="r-role"]:checked').value;
+  const student = role === "STUDENT";
+  const fullName = $("r-fullname").value.trim();
+  const email = $("r-email").value.trim();
+  const rollNo = $("r-rollno").value.trim();
+  const username = $("r-username").value.trim();
+  const password = $("r-password").value;
+  const confirm = $("r-confirm").value;
+
+  // Same rules the server enforces (AuthService), checked here first for instant feedback.
+  if (!fullName) return failField("r-fullname", "Enter your full name");
+  if (!EMAIL_RE.test(email)) return failField("r-email", "Enter a valid email address");
+  if (student && !rollNo) return failField("r-rollno", "Enter your roll number");
+  if (student && !ROLL_NO_RE.test(rollNo)) return failField("r-rollno", "Roll number must be 3-30 characters: letters, digits, '-', '/' or '_'");
+  if (!USERNAME_RE.test(username)) return failField("r-username", "Username must be 3-30 characters: letters, digits, '_' or '.'");
+  if (password.length < 6) return failField("r-password", "Password must be at least 6 characters");
+  if (password !== confirm) return failField("r-confirm", "Passwords do not match");
+
+  withBusy(e.target, async () => {
+    try {
+      const user = await api.register({ role, fullName, email, rollNo: student ? rollNo : "", username, password });
+      e.target.reset();
+      showApp(user);
+    } catch (err) {
+      showAuthError(err.message);
+    }
+  });
 });
 
 $("logout-btn").addEventListener("click", async () => {
@@ -175,7 +286,6 @@ $("logout-btn").addEventListener("click", async () => {
     await api.logout();
   } finally {
     showAuth();
-    setAuthMode("login");
   }
 });
 

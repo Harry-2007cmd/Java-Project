@@ -22,7 +22,7 @@ public final class SessionManager {
     }
 
     /** The logged-in user's identity for the lifetime of one session. */
-    public record Session(int userId, String username, String fullName, Role role) {
+    public record Session(int userId, String username, String fullName, Role role, String email, String rollNo) {
         public boolean isAdmin() {
             return role == Role.ADMIN;
         }
@@ -31,7 +31,8 @@ public final class SessionManager {
     /** Creates a session for the user and tells the browser to remember its token in a cookie. */
     public static Session login(HttpExchange exchange, User user) {
         String token = AuthUtil.newToken();
-        Session session = new Session(user.getUserId(), user.getUsername(), user.getFullName(), user.getRole());
+        Session session = new Session(user.getUserId(), user.getUsername(), user.getFullName(), user.getRole(),
+                user.getEmail(), user.getRollNo());
         SESSIONS.put(token, session);
         exchange.getResponseHeaders().add("Set-Cookie", COOKIE_NAME + "=" + token + "; Path=/; HttpOnly; SameSite=Strict");
         return session;
