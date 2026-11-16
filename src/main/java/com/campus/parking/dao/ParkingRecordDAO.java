@@ -22,7 +22,8 @@ public class ParkingRecordDAO {
 
     // Shared by every query that needs vehicle/slot details alongside the record.
     private static final String JOINED_SELECT =
-            "SELECT pr.*, v.vehicle_number, v.user_id AS owner_user_id, s.slot_number, s.location " +
+            "SELECT pr.*, v.vehicle_number, v.user_id AS owner_user_id, v.owner_name, v.vehicle_type AS vehicle_type_name, " +
+            "TIMESTAMPDIFF(MINUTE, pr.entry_time, NOW()) AS live_minutes, s.slot_number, s.location " +
             "FROM parking_records pr " +
             "JOIN vehicles v ON pr.vehicle_id = v.vehicle_id " +
             "JOIN parking_slots s ON pr.slot_id = s.slot_id ";
@@ -160,6 +161,9 @@ public class ParkingRecordDAO {
         r.setVehicleNumber(rs.getString("vehicle_number"));
         r.setSlotNumber(rs.getString("slot_number"));
         r.setLocation(rs.getString("location"));
+        r.setOwnerName(rs.getString("owner_name"));
+        r.setVehicleType(rs.getString("vehicle_type_name"));
+        r.setLiveMinutes(rs.getLong("live_minutes"));
         int owner = rs.getInt("owner_user_id");
         r.setOwnerUserId(rs.wasNull() ? null : owner);
         return r;

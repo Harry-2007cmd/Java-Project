@@ -37,6 +37,8 @@ const api = {
   unpark: (vehicleNumber) => post("/api/unpark", { vehicleNumber }),
   revenue: () => fetch("/api/admin/revenue").then(toJson),
   addSlot: (payload) => post("/api/admin/slots", payload),
+  dashboard: () => fetch("/api/admin/dashboard").then(toJson),
+  setMaintenance: (slotId, outOfService) => post("/api/admin/maintenance", { slotId: String(slotId), outOfService: String(outOfService) }),
   deleteSlot: (id) => fetch(`/api/admin/slots/${id}`, { method: "DELETE" }).then(toJson),
 };
 
@@ -148,11 +150,13 @@ function showApp(user) {
   $("avatar").textContent = (user.fullName || user.username || "?").trim().charAt(0).toUpperCase();
   $("today").textContent = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   document.querySelectorAll(".admin-only").forEach((el) => el.classList.toggle("hidden", !isAdmin()));
+  // Admins supervise only: no parking or vehicle-finder screens for them.
+  document.querySelectorAll(".user-only").forEach((el) => el.classList.toggle("hidden", isAdmin()));
   $("parked-title").textContent = isAdmin() ? "Parked now (all vehicles)" : "My parked vehicles";
   $("history-title").textContent = isAdmin() ? "Parking history (all vehicles)" : "My parking history";
 
-  navigate("overview");
-  loadRates();
+  navigate(isAdmin() ? "dashboard" : "overview");
+  if (!isAdmin()) loadRates();
 }
 
 function resetAuthForms() {
@@ -301,20 +305,27 @@ function greeting() {
 }
 
 const VIEWS = {
+  dashboard: {
+    title: () => greeting(),
+    sub: () => "Live occupancy, revenue and alerts for campus parking.",
+    load: () => loadDashboard(),
+  },
+  map3d: { title: () => "3D parking map", sub: () => "Every slot on campus, live. Click a slot to see who is parked there.", load: () => loadMap3d() },
   overview: {
     title: () => greeting(),
     sub: () => (isAdmin() ? "Here is what is happening in campus parking today." : "Here is today's availability and your parked vehicles."),
     load: () => loadOverview(),
   },
-  live: { title: () => "Live parking", sub: () => "Every slot on campus. Select a free slot to park that type of vehicle.", load: () => loadLive() },
+  live: { title: () => "Live parking", sub: () => (isAdmin() ? "Every slot on campus and whether it is free, occupied or closed." : "Every slot on campus. Select a free slot to park that type of vehicle."), load: () => loadLive() },
   park: { title: () => "Park a vehicle", sub: () => "A free slot that matches the vehicle type is allocated automatically.", load: () => {} },
   finder: { title: () => "Find my vehicle", sub: () => "See where a vehicle is parked, or leave and see the fee.", load: () => {} },
   reports: { title: () => "Reports", sub: () => (isAdmin() ? "Occupancy, arrivals and parking history." : "Your parking visits, time parked and fees."), load: () => loadReports() },
-  manage: { title: () => "Manage slots", sub: () => "Add or remove parking slots and see the fees collected.", load: () => loadManage() },
+  manage: { title: () => "Manage slots", sub: () => "Add or remove slots, and close slots for maintenance.", load: () => loadManage() },
 };
 
 function navigate(name) {
-  if (name === "manage" && !isAdmin()) name = "overview";
+  if (!isAdmin() && ["manage", "dashboard", "map3d"].includes(name)) name = "overview";
+  if (isAdmin() && ["overview", "park", "finder"].includes(name)) name = "dashboard";
   const view = VIEWS[name];
   document.querySelectorAll("#tabs .nav-item").forEach((b) => {
     const on = b.dataset.view === name;
@@ -354,7 +365,8 @@ function statCard(tint, iconName, label, value) {
   </div>`;
 }
 
-function renderOverviewStats(slots) {
+function renderOverviewStats(all) {
+  const slots = all.filter((s) => !s.outOfService);   // closed slots are not capacity
   const total = slots.length;
   const busy = slots.filter((s) => s.occupied).length;
   const pct = total ? Math.round((busy / total) * 100) : 0;
@@ -380,9 +392,10 @@ function renderZoneCards(slots) {
   }
   return [...groupByLocation(slots)]
     .map(([location, list]) => {
-      const busy = list.filter((s) => s.occupied).length;
-      const free = list.length - busy;
-      const pct = Math.round((busy / list.length) * 100);
+      const usable = list.filter((s) => !s.outOfService);
+      const busy = usable.filter((s) => s.occupied).length;
+      const free = usable.length - busy;
+      const pct = usable.length ? Math.round((busy / usable.length) * 100) : 100;
       const level = pct >= 90 ? "high" : pct >= 70 ? "mid" : "";
       const types = [...new Set(list.map((s) => typeLabel(s.vehicleType)))].join(", ");
       return `<div class="zone">
@@ -391,7 +404,7 @@ function renderZoneCards(slots) {
           <div class="zone-free ${free === 0 ? "full" : ""}">${free === 0 ? "Full" : free + " free"}</div>
         </div>
         <div class="meter" role="img" aria-label="${pct}% occupied"><i class="${level}" style="width:${pct}%"></i></div>
-        <div class="mini">${list.map((s) => `<i class="${s.occupied ? "busy" : ""}" title="${esc(s.slotNumber)}"></i>`).join("")}</div>
+        <div class="mini">${list.map((s) => `<i class="${s.outOfService ? "off" : s.occupied ? "busy" : ""}" title="${esc(s.slotNumber)}"></i>`).join("")}</div>
       </div>`;
     })
     .join("");
@@ -456,7 +469,7 @@ function renderParked(records) {
 // Per-type occupied counts built from the slot list, so students never need the admin-only report.
 function occupancyByType(slots) {
   const out = {};
-  slots.forEach((s) => {
+  slots.filter((s) => !s.outOfService).forEach((s) => {
     const row = out[s.vehicleType] || (out[s.vehicleType] = { totalSlots: 0, occupiedSlots: 0 });
     row.totalSlots += 1;
     if (s.occupied) row.occupiedSlots += 1;
@@ -508,7 +521,7 @@ function renderLive() {
   const query = $("slot-search").value.trim().toLowerCase();
   const slots = allSlots.filter((s) =>
     (!type || s.vehicleType === type) &&
-    (!status || (status === "busy") === s.occupied) &&
+    (!status || (status === "maint" ? s.outOfService : !s.outOfService && (status === "busy") === s.occupied)) &&
     (!query || s.slotNumber.toLowerCase().includes(query)));
 
   const box = $("live-zones");
@@ -518,10 +531,14 @@ function renderLive() {
   }
   box.innerHTML = [...groupByLocation(slots)]
     .map(([location, list]) => {
-      const free = list.filter((s) => !s.occupied).length;
+      const free = list.filter((s) => !s.occupied && !s.outOfService).length;
       const tiles = list
-        .map((s) => s.occupied
+        .map((s) => s.outOfService
+          ? `<div class="tile maint"><b>${esc(s.slotNumber)}</b><span>${esc(typeLabel(s.vehicleType))}, closed</span></div>`
+          : s.occupied
           ? `<div class="tile busy"><b>${esc(s.slotNumber)}</b><span>${esc(typeLabel(s.vehicleType))}, occupied</span></div>`
+          : isAdmin()
+          ? `<div class="tile free admin-tile"><b>${esc(s.slotNumber)}</b><span>${esc(typeLabel(s.vehicleType))}, free</span></div>`
           : `<button type="button" class="tile free" data-type="${esc(s.vehicleType)}" title="Park a ${esc(typeLabel(s.vehicleType))} here"><b>${esc(s.slotNumber)}</b><span>${esc(typeLabel(s.vehicleType))}, free</span></button>`)
         .join("");
       return `<div class="card"><div class="zone-section-head"><h2>${esc(location)}</h2><span>${free} of ${list.length} free</span></div><div class="tiles">${tiles}</div></div>`;
@@ -765,10 +782,11 @@ async function loadManage() {
   try {
     const [slots, revenue] = await Promise.all([api.slots(), api.revenue()]);
     const busy = slots.filter((s) => s.occupied).length;
+    const closed = slots.filter((s) => s.outOfService).length;
     $("revenue-row").innerHTML =
       statCard("amber", "rupee", "Total fees collected", money(revenue.totalRevenue)) +
       statCard("blue", "parking", "Total slots", slots.length) +
-      statCard("green", "check", "Free slots", slots.length - busy);
+      statCard("green", "check", "Free slots", slots.length - busy - closed);
 
     $("manage-body").innerHTML = slots.length === 0
       ? `<tr><td class="empty" colspan="5">No slots yet. Add the first one above.</td></tr>`
@@ -776,9 +794,24 @@ async function loadManage() {
           <td><strong>${esc(s.slotNumber)}</strong></td>
           <td>${esc(typeLabel(s.vehicleType))}</td>
           <td>${esc(s.location)}</td>
-          <td><span class="badge ${s.occupied ? "badge-busy" : "badge-free"}">${s.occupied ? "Occupied" : "Free"}</span></td>
-          <td class="act"><button class="btn btn-danger btn-sm" data-slot-id="${esc(s.slotId)}">${icon("trash")}Delete</button></td>
+          <td><span class="badge ${s.outOfService ? "badge-maint" : s.occupied ? "badge-busy" : "badge-free"}">${s.outOfService ? "Maintenance" : s.occupied ? "Occupied" : "Free"}</span></td>
+          <td class="act">
+            <button class="btn btn-ghost btn-sm" data-maint-id="${esc(s.slotId)}" data-maint-to="${s.outOfService ? "false" : "true"}" ${s.occupied && !s.outOfService ? "disabled title=\"Occupied - wait for the vehicle to leave\"" : ""}>${icon("wrench")}${s.outOfService ? "Reopen" : "Close for maintenance"}</button>
+            <button class="btn btn-danger btn-sm" data-slot-id="${esc(s.slotId)}">${icon("trash")}Delete</button>
+          </td>
         </tr>`).join("");
+
+    $("manage-body").querySelectorAll("button[data-maint-id]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          const slot = await api.setMaintenance(btn.dataset.maintId, btn.dataset.maintTo === "true");
+          showToast(slot.outOfService ? `Slot ${slot.slotNumber} closed for maintenance.` : `Slot ${slot.slotNumber} reopened.`);
+          loadManage();
+        } catch (e) {
+          handleError(e);
+        }
+      });
+    });
 
     $("manage-body").querySelectorAll("button[data-slot-id]").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -812,6 +845,218 @@ $("slot-form").addEventListener("submit", async (e) => {
   }
 });
 $("refresh-manage").addEventListener("click", loadManage);
+
+// ============================================================
+// Admin dashboard (own SVG/CSS charts - no chart library)
+// ============================================================
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const rupees = (n) => "₹" + Math.round(Number(n || 0)).toLocaleString("en-IN");
+
+async function loadDashboard() {
+  try {
+    const [d, parked] = await Promise.all([api.dashboard(), api.parked()]);
+    renderDashAlerts(d.alerts);
+    renderDashStats(d.summary);
+    $("dash-zones").innerHTML = d.byZone.map((z) => hbar(z.zone, z)).join("") || `<p class="muted">No slots yet.</p>`;
+    $("dash-types").innerHTML = d.byType.map((t) => hbar(typeLabel(t.type), t, TYPE_COLOR[t.type])).join("");
+    renderRevenue(d);
+    $("dash-hours").innerHTML = barChart(d.peakHours.map((h) => ({ label: String(h.hour).padStart(2, "0"), value: h.count })), { highlightMax: true, every: 2, unit: "arrivals" });
+    $("dash-days").innerHTML = barChart(d.peakWeekdays.map((x) => ({ label: x.day, value: x.count })), { highlightMax: true, unit: "arrivals" });
+    renderDashLive(parked, d.summary.overstayHours);
+  } catch (e) {
+    handleError(e);
+  }
+}
+
+function renderDashAlerts(alerts) {
+  $("dash-alerts").innerHTML = alerts.map((a) =>
+    `<div class="alert alert-${esc(a.level)}" role="alert">${icon(a.level === "info" ? "wrench" : "alert")}<span>${esc(a.message)}</span></div>`).join("");
+}
+
+function renderDashStats(s) {
+  $("dash-stats").innerHTML =
+    statCard("blue", "parking", "Total slots", s.totalSlots) +
+    statCard("red", "car", "Occupied", s.occupied) +
+    statCard("green", "check", "Available", s.available) +
+    statCard("purple", "pie", "Occupancy", s.occupancyPercent + "%") +
+    statCard("amber", "rupee", "Revenue today", rupees(s.revenueToday));
+}
+
+function hbar(name, row, color) {
+  const level = row.percent >= 90 ? "full" : row.percent >= 70 ? "warn" : "ok";
+  const usable = row.total - row.outOfService;
+  const note = row.outOfService ? ` · ${row.outOfService} closed` : "";
+  return `<div class="hbar">
+    <div class="hbar-top"><b>${esc(name)}</b><span>${row.occupied}/${usable} in use · ${row.percent}%${esc(note)}</span></div>
+    <div class="hbar-track" role="img" aria-label="${esc(name)} ${row.percent}% occupied"><div class="hbar-fill ${color ? "" : level}" style="width:${Math.min(100, row.percent)}%${color ? ";background:" + color : ""}"></div></div>
+  </div>`;
+}
+
+// A bar chart as inline SVG. items: [{label, value}]
+function barChart(items, opts = {}) {
+  const W = 560, H = 210, padL = 30, padB = 24, padT = 12;
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const top = niceCeil(max);
+  const bw = (W - padL) / items.length;
+  const peak = opts.highlightMax ? items.reduce((m, i, idx) => (i.value > items[m].value ? idx : m), 0) : -1;
+  let g = "";
+  for (let k = 0; k <= 4; k++) {
+    const y = padT + (H - padT - padB) * (1 - k / 4);
+    g += `<line class="grid" x1="${padL}" x2="${W}" y1="${y}" y2="${y}"/><text class="axis" x="${padL - 6}" y="${y + 3}" text-anchor="end">${Math.round((top * k) / 4)}</text>`;
+  }
+  items.forEach((it, idx) => {
+    const h = ((H - padT - padB) * it.value) / top;
+    const x = padL + idx * bw + bw * 0.16;
+    const y = H - padB - h;
+    g += `<rect class="bar ${idx === peak ? "peak" : ""}" x="${x}" y="${y}" width="${bw * 0.68}" height="${Math.max(h, 0)}" rx="3"><title>${esc(it.label)}: ${it.value}${opts.unit ? " " + opts.unit : ""}</title></rect>`;
+    if (!opts.every || idx % opts.every === 0) g += `<text class="axis" x="${x + bw * 0.34}" y="${H - 7}" text-anchor="middle">${esc(it.label)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart">${g}</svg>`;
+}
+
+function niceCeil(v) {
+  if (v <= 4) return 4;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+
+function renderRevenue(d) {
+  const s = d.summary;
+  $("dash-rev-pills").innerHTML =
+    `<span class="rev-pill"><small>Today</small>${rupees(s.revenueToday)}</span>` +
+    `<span class="rev-pill"><small>7 days</small>${rupees(s.revenueWeek)}</span>` +
+    `<span class="rev-pill"><small>30 days</small>${rupees(s.revenueMonth)}</span>`;
+
+  const pts = d.revenueDaily;
+  const W = 560, H = 210, padL = 44, padB = 24, padT = 14;
+  const top = niceCeil(Math.max(1, ...pts.map((p) => p.amount)));
+  const step = (W - padL - 10) / Math.max(1, pts.length - 1);
+  const xy = pts.map((p, i) => [padL + i * step, padT + (H - padT - padB) * (1 - p.amount / top)]);
+  let g = `<defs><linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".28"/><stop offset="1" stop-color="#2563eb" stop-opacity="0"/></linearGradient></defs>`;
+  for (let k = 0; k <= 4; k++) {
+    const y = padT + (H - padT - padB) * (1 - k / 4);
+    g += `<line class="grid" x1="${padL}" x2="${W}" y1="${y}" y2="${y}"/><text class="axis" x="${padL - 6}" y="${y + 3}" text-anchor="end">${rupees((top * k) / 4)}</text>`;
+  }
+  const line = xy.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  g += `<path class="area" d="${line} L${xy[xy.length - 1][0]} ${H - padB} L${xy[0][0]} ${H - padB} Z"/><path class="line" d="${line}"/>`;
+  pts.forEach((p, i) => {
+    const dt = new Date(p.date + "T00:00:00");
+    g += `<circle class="pt" cx="${xy[i][0]}" cy="${xy[i][1]}" r="3.4"><title>${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}: ${rupees(p.amount)}</title></circle>`;
+    if (i % 2 === 0 || i === pts.length - 1) g += `<text class="axis" x="${xy[i][0]}" y="${H - 7}" text-anchor="middle">${dt.getDate()}/${dt.getMonth() + 1}</text>`;
+  });
+  $("dash-rev-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily revenue, last 14 days">${g}</svg>`;
+
+  const total = d.revenueByType.reduce((a, r) => a + Number(r.amount), 0) || 1;
+  $("dash-rev-type").innerHTML = `<div class="hbars">${d.revenueByType.map((r) => {
+    const pct = Math.round((Number(r.amount) / total) * 1000) / 10;
+    return `<div class="hbar"><div class="hbar-top"><b>${esc(typeLabel(r.type))}</b><span>${rupees(r.amount)} · ${pct}%</span></div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${TYPE_COLOR[r.type] || "#999"}"></div></div></div>`;
+  }).join("") || `<p class="muted">No revenue yet.</p>`}</div>`;
+}
+
+let dashShowAll = false;
+let dashLastParked = [];
+function renderDashLive(records, overHours) {
+  dashLastParked = records;
+  const limit = (overHours || 8) * 60;
+  const over = records.filter((r) => r.liveMinutes >= limit).length;
+  $("dash-live-sub").dataset.h = overHours;
+  $("dash-live-sub").textContent = `${records.length} vehicles` + (over ? ` · ${over} over ${overHours} h` : "");
+  const all = [...records].sort((a, b) => b.liveMinutes - a.liveMinutes);
+  const LIMIT = 12;
+  const sorted = dashShowAll ? all : all.slice(0, LIMIT);
+  $("dash-live-more").classList.toggle("hidden", all.length <= LIMIT);
+  $("dash-live-more").textContent = dashShowAll ? "Show fewer" : `Show all ${all.length}`;
+  $("dash-live-body").innerHTML = sorted.length === 0
+    ? `<tr><td class="empty" colspan="8">No vehicles are parked right now.</td></tr>`
+    : sorted.map((r) => {
+        const isOver = r.liveMinutes >= limit;
+        return `<tr class="${isOver ? "overstay" : ""}">
+          <td>${plate(r.vehicleNumber)}</td><td>${esc(r.ownerName)}</td><td>${esc(typeLabel(r.vehicleType))}</td>
+          <td>${esc(r.slotNumber)}</td><td>${esc(r.location)}</td><td>${esc(r.entryTime)}</td>
+          <td>${esc(fmtMinutes(r.liveMinutes))} ${isOver ? `<span class="badge badge-over">Overstay</span>` : ""}</td>
+          <td class="act"><button class="btn btn-ghost btn-sm" data-show-slot="${esc(r.slotId)}">${icon("cube")}Show on map</button></td>
+        </tr>`;
+      }).join("");
+  $("dash-live-body").querySelectorAll("button[data-show-slot]").forEach((b) =>
+    b.addEventListener("click", () => { pendingFocusSlot = Number(b.dataset.showSlot); navigate("map3d"); }));
+}
+$("refresh-dash").addEventListener("click", loadDashboard);
+$("dash-live-more").addEventListener("click", () => { dashShowAll = !dashShowAll; renderDashLive(dashLastParked, Number($("dash-live-sub").dataset.h || 8)); });
+
+// ============================================================
+// 3D parking map (admin)
+// ============================================================
+
+let pendingFocusSlot = null;
+let map3dStarted = false;
+
+async function loadMap3d() {
+  if (!map3dStarted) {
+    map3dStarted = true;
+    const ok = window.THREE && window.Map3D && Map3D.init($("map3d"), { onSelect: showSlotInfo });
+    if (!ok) {
+      $("m3-fallback").classList.remove("hidden");
+      return;
+    }
+  }
+  if (Map3D.failed) return;
+  try {
+    const [slots, records, dash] = await Promise.all([api.slots(), api.parked(), api.dashboard()]);
+    Map3D.setData({ slots, records, overstayMinutes: dash.summary.overstayHours * 60 });
+    Map3D.resize();
+    if (pendingFocusSlot != null) {
+      Map3D.select(pendingFocusSlot);
+      const p = slots.find((s) => s.slotId === pendingFocusSlot);
+      if (p) showSlotInfo({ slot: p, rec: records.find((r) => r.slotId === p.slotId), state: "" });
+      pendingFocusSlot = null;
+    }
+  } catch (e) {
+    handleError(e);
+  }
+}
+
+function showSlotInfo(p) {
+  const box = $("m3-info");
+  if (!p) { box.classList.add("hidden"); return; }
+  const s = p.slot, r = p.rec;
+  const status = s.outOfService ? "Under maintenance" : s.occupied ? "Occupied" : "Free";
+  const badge = s.outOfService ? "badge-maint" : s.occupied ? "badge-busy" : "badge-free";
+  let rows = `<dt>Status</dt><dd><span class="badge ${badge}">${status}</span></dd><dt>Type</dt><dd>${esc(typeLabel(s.vehicleType))}</dd>`;
+  if (r) {
+    rows += `<dt>Vehicle</dt><dd>${esc(r.vehicleNumber)}</dd><dt>Owner</dt><dd>${esc(r.ownerName)}</dd>
+      <dt>Parked since</dt><dd>${esc(r.entryTime)}</dd><dt>Duration</dt><dd>${esc(fmtMinutes(r.liveMinutes))}</dd>`;
+  }
+  const canToggle = s.outOfService || !s.occupied;
+  box.innerHTML = `<button class="info-close" aria-label="Close">×</button>
+    <h3>Slot ${esc(s.slotNumber)}</h3><div class="sub">${esc(s.location)}</div>
+    <dl>${rows}</dl>
+    ${canToggle ? `<button class="btn ${s.outOfService ? "btn-primary" : "btn-ghost"} btn-sm" id="m3-toggle">${icon("wrench")}${s.outOfService ? "Reopen slot" : "Close for maintenance"}</button>` : `<span class="muted">Can be closed once the vehicle leaves.</span>`}`;
+  box.classList.remove("hidden");
+  box.querySelector(".info-close").addEventListener("click", () => { Map3D.select(null); box.classList.add("hidden"); });
+  const t = $("m3-toggle");
+  if (t) t.addEventListener("click", async () => {
+    try {
+      const updated = await api.setMaintenance(s.slotId, !s.outOfService);
+      showToast(updated.outOfService ? `Slot ${updated.slotNumber} closed for maintenance.` : `Slot ${updated.slotNumber} reopened.`);
+      box.classList.add("hidden");
+      loadMap3d();
+    } catch (e) {
+      handleError(e);
+    }
+  });
+}
+
+$("m3-reset").addEventListener("click", () => Map3D.resetView());
+$("m3-top").addEventListener("click", () => Map3D.topView());
+$("m3-refresh").addEventListener("click", loadMap3d);
+$("m3-rotate").addEventListener("click", (e) => {
+  const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+  e.currentTarget.setAttribute("aria-pressed", String(on));
+  Map3D.setAutoRotate(on);
+});
 
 // ============================================================
 // Start: are we already logged in (e.g. page refresh)?

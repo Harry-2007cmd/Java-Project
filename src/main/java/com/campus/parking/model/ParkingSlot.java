@@ -9,6 +9,7 @@ public class ParkingSlot {
     private VehicleType vehicleType;
     private String location;
     private boolean occupied;
+    private boolean outOfService;   // admin has taken the slot out of use (maintenance)
 
     public ParkingSlot() {
     }
@@ -59,5 +60,13 @@ public class ParkingSlot {
 
     public void setOccupied(boolean occupied) {
         this.occupied = occupied;
+    }
+
+    public boolean isOutOfService() {
+        return outOfService;
+    }
+
+    public void setOutOfService(boolean outOfService) {
+        this.outOfService = outOfService;
     }
 }

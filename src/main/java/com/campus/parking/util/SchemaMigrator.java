@@ -19,6 +19,7 @@ import java.sql.Statement;
 public final class SchemaMigrator {
 
     private static boolean done = false;
+    private static boolean slotsDone = false;
 
     private SchemaMigrator() {
     }
@@ -49,16 +50,38 @@ public final class SchemaMigrator {
         }
     }
 
+    /** Adds parking_slots.out_of_service (the admin "maintenance" switch) if it is missing. Safe to call repeatedly. */
+    public static synchronized void ensureSlotColumns() {
+        if (slotsDone) {
+            return;
+        }
+        try (Connection con = DBConnection.getConnection(); Statement st = con.createStatement()) {
+            if (columnType(con, "parking_slots", "out_of_service") == null) {
+                st.executeUpdate("ALTER TABLE parking_slots ADD COLUMN out_of_service BOOLEAN NOT NULL DEFAULT FALSE");
+                System.out.println("[migration] added parking_slots.out_of_service");
+            }
+            slotsDone = true;
+        } catch (SQLException e) {
+            System.err.println("[migration] Could not add parking_slots.out_of_service automatically: " + e.getMessage()
+                    + "\n[migration] Run src/main/resources/db/migrate_admin.sql once, then restart.");
+        }
+    }
+
     private static boolean columnExists(Connection con, String column) throws SQLException {
         return columnType(con, column) != null;
     }
 
     /** The column's MySQL type (e.g. "varchar(100)" or "enum('STUDENT','ADMIN')"), or null if the column does not exist. */
     private static String columnType(Connection con, String column) throws SQLException {
+        return columnType(con, "users", column);
+    }
+
+    private static String columnType(Connection con, String table, String column) throws SQLException {
         String sql = "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS "
-                + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?";
+                + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setString(1, column);
+            ps.setString(1, table);
+            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getString(1) : null;
             }

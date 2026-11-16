@@ -21,6 +21,9 @@ public class ParkingRecord {
     private String vehicleNumber;
     private String slotNumber;
     private String location;
+    private String ownerName;
+    private String vehicleType;
+    private Long liveMinutes;      // minutes since entry, measured by the database (meaningful for active records)
     private Integer ownerUserId;   // the student account the vehicle belongs to (null if none)
 
     public ParkingRecord() {
@@ -113,6 +116,13 @@ public class ParkingRecord {
     public void setLocation(String location) {
         this.location = location;
     }
+
+    public String getOwnerName() { return ownerName; }
+    public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
+    public String getVehicleType() { return vehicleType; }
+    public void setVehicleType(String vehicleType) { this.vehicleType = vehicleType; }
+    public Long getLiveMinutes() { return liveMinutes; }
+    public void setLiveMinutes(Long liveMinutes) { this.liveMinutes = liveMinutes; }
 
     public boolean isActive() {
         return exitTime == null;

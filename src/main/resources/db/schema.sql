@@ -38,7 +38,8 @@ CREATE TABLE parking_slots (
     slot_number    VARCHAR(20)  NOT NULL UNIQUE,
     vehicle_type   ENUM('CAR', 'BIKE', 'BUS', 'EV') NOT NULL,
     location       VARCHAR(100) NOT NULL,          -- e.g. "Block A - Ground Floor"
-    is_occupied    BOOLEAN      NOT NULL DEFAULT FALSE
+    is_occupied    BOOLEAN      NOT NULL DEFAULT FALSE,
+    out_of_service BOOLEAN      NOT NULL DEFAULT FALSE   -- admin has closed the slot for maintenance
 );
 
 -- ------------------------------------------------------------
@@ -81,17 +82,68 @@ CREATE TABLE parking_records (
 -- ------------------------------------------------------------
 -- Sample seed data so the app has something to show immediately
 -- ------------------------------------------------------------
+-- Campus layout: zone names follow the parking areas Chitkara University lists publicly
+-- (Turing Block, Gate 3, rear of Picasso Block, two-wheeler parking, bus bay, EV zone).
+-- Slot counts are illustrative - edit them to match your campus.
 INSERT INTO parking_slots (slot_number, vehicle_type, location, is_occupied) VALUES
-('A-01', 'CAR',  'Block A - Ground Floor', FALSE),
-('A-02', 'CAR',  'Block A - Ground Floor', FALSE),
-('A-03', 'CAR',  'Block A - Ground Floor', FALSE),
-('B-01', 'BIKE', 'Block B - Two Wheeler Shed', FALSE),
-('B-02', 'BIKE', 'Block B - Two Wheeler Shed', FALSE),
-('B-03', 'BIKE', 'Block B - Two Wheeler Shed', FALSE),
-('C-01', 'BUS',  'Block C - Bus Bay', FALSE),
-('C-02', 'BUS',  'Block C - Bus Bay', FALSE),
-('D-01', 'EV',   'Block D - EV Charging Zone', FALSE),
-('D-02', 'EV',   'Block D - EV Charging Zone', FALSE);
+('T-01', 'CAR', 'Turing Block Parking', FALSE),
+('T-02', 'CAR', 'Turing Block Parking', FALSE),
+('T-03', 'CAR', 'Turing Block Parking', FALSE),
+('T-04', 'CAR', 'Turing Block Parking', FALSE),
+('T-05', 'CAR', 'Turing Block Parking', FALSE),
+('T-06', 'CAR', 'Turing Block Parking', FALSE),
+('T-07', 'CAR', 'Turing Block Parking', FALSE),
+('T-08', 'CAR', 'Turing Block Parking', FALSE),
+('T-09', 'CAR', 'Turing Block Parking', FALSE),
+('T-10', 'CAR', 'Turing Block Parking', FALSE),
+('T-11', 'CAR', 'Turing Block Parking', FALSE),
+('T-12', 'CAR', 'Turing Block Parking', FALSE),
+('G-01', 'CAR', 'Gate 3 Parking', FALSE),
+('G-02', 'CAR', 'Gate 3 Parking', FALSE),
+('G-03', 'CAR', 'Gate 3 Parking', FALSE),
+('G-04', 'CAR', 'Gate 3 Parking', FALSE),
+('G-05', 'CAR', 'Gate 3 Parking', FALSE),
+('G-06', 'CAR', 'Gate 3 Parking', FALSE),
+('G-07', 'CAR', 'Gate 3 Parking', FALSE),
+('G-08', 'CAR', 'Gate 3 Parking', FALSE),
+('G-09', 'CAR', 'Gate 3 Parking', FALSE),
+('G-10', 'CAR', 'Gate 3 Parking', FALSE),
+('P-01', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-02', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-03', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-04', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-05', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-06', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-07', 'CAR', 'Picasso Block (Rear)', FALSE),
+('P-08', 'CAR', 'Picasso Block (Rear)', FALSE),
+('W-01', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-02', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-03', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-04', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-05', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-06', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-07', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-08', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-09', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-10', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-11', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-12', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-13', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-14', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-15', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('W-16', 'BIKE', 'Two-Wheeler Parking', FALSE),
+('S-01', 'BUS', 'Bus Bay', FALSE),
+('S-02', 'BUS', 'Bus Bay', FALSE),
+('S-03', 'BUS', 'Bus Bay', FALSE),
+('S-04', 'BUS', 'Bus Bay', FALSE),
+('S-05', 'BUS', 'Bus Bay', FALSE),
+('S-06', 'BUS', 'Bus Bay', FALSE),
+('E-01', 'EV', 'EV Charging Zone', FALSE),
+('E-02', 'EV', 'EV Charging Zone', FALSE),
+('E-03', 'EV', 'EV Charging Zone', FALSE),
+('E-04', 'EV', 'EV Charging Zone', FALSE),
+('E-05', 'EV', 'EV Charging Zone', FALSE),
+('E-06', 'EV', 'EV Charging Zone', FALSE);
 
 -- Billing rates (rupees per hour, charged for the started hour)
 INSERT INTO parking_rates (vehicle_type, rate_per_hour) VALUES

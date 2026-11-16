@@ -107,13 +107,18 @@ final class JsonUtil {
                 .put("slotNumber", s.getSlotNumber())
                 .put("vehicleType", s.getVehicleType().name())
                 .put("location", s.getLocation())
-                .put("occupied", s.isOccupied());
+                .put("occupied", s.isOccupied())
+                .put("outOfService", s.isOutOfService());
     }
 
     static JsonObject toJson(ParkingRecord r) {
         return new JsonObject()
                 .put("recordId", r.getRecordId())
                 .put("vehicleNumber", r.getVehicleNumber())
+                .put("ownerName", r.getOwnerName())
+                .put("vehicleType", r.getVehicleType())
+                .put("slotId", r.getSlotId())
+                .put("liveMinutes", r.isActive() ? r.getLiveMinutes() : null)
                 .put("slotNumber", r.getSlotNumber())
                 .put("location", r.getLocation())
                 .put("entryTime", r.getEntryTime() != null ? r.getEntryTime().format(FMT) : null)

@@ -30,6 +30,8 @@ public class Server {
         // Admin only
         server.createContext("/api/admin/slots", new ApiHandlers.AdminSlotsHandler());
         server.createContext("/api/admin/revenue", new ApiHandlers.RevenueHandler());
+        server.createContext("/api/admin/dashboard", new ApiHandlers.DashboardHandler());
+        server.createContext("/api/admin/maintenance", new ApiHandlers.MaintenanceHandler());
 
         // REST API - everything under /api/*
         server.createContext("/api/rates", new ApiHandlers.RatesHandler());

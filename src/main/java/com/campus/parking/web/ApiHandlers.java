@@ -1,5 +1,6 @@
 package com.campus.parking.web;
 
+import com.campus.parking.dao.DashboardDAO;
 import com.campus.parking.model.ParkingRecord;
 import com.campus.parking.model.ParkingSlot;
 import com.campus.parking.model.User;
@@ -85,6 +86,13 @@ public class ApiHandlers {
     /** null for an admin (no restriction), the student's or faculty member's own id otherwise. */
     private static Integer scopeOf(Session s) {
         return s.isAdmin() ? null : s.userId();
+    }
+
+    /** Admins only supervise and view statistics; they never park, unpark or look up a vehicle themselves. */
+    private static void denyAdmin(Session s) {
+        if (s.isAdmin()) {
+            throw new AuthException(403, "Admins supervise only - parking actions are for students and faculty");
+        }
     }
 
     private static JsonUtil.JsonObject userJson(Session s) {
@@ -199,6 +207,7 @@ public class ApiHandlers {
             }
             safely(exchange, () -> {
                 Session session = SessionManager.requireLogin(exchange);
+                denyAdmin(session);
                 Map<String, String> body = JsonUtil.readBody(exchange);
                 String vehicleNumber = required(body, "vehicleNumber").toUpperCase();
                 VehicleType type = VehicleType.fromString(required(body, "vehicleType"));
@@ -220,6 +229,7 @@ public class ApiHandlers {
             }
             safely(exchange, () -> {
                 Session session = SessionManager.requireLogin(exchange);
+                denyAdmin(session);
                 Map<String, String> body = JsonUtil.readBody(exchange);
                 String vehicleNumber = required(body, "vehicleNumber").toUpperCase();
                 ParkingRecord record = SERVICE.unparkVehicle(vehicleNumber, scopeOf(session));
@@ -237,6 +247,7 @@ public class ApiHandlers {
             }
             safely(exchange, () -> {
                 Session session = SessionManager.requireLogin(exchange);
+                denyAdmin(session);
                 Map<String, String> q = JsonUtil.parseQuery(exchange.getRequestURI().getQuery());
                 String vehicleNumber = q.getOrDefault("vehicleNumber", "").trim().toUpperCase();
                 if (vehicleNumber.isBlank()) {
@@ -388,6 +399,163 @@ public class ApiHandlers {
                 SessionManager.requireAdmin(exchange);
                 JsonUtil.sendJson(exchange, 200, new JsonUtil.JsonObject().put("totalRevenue", SERVICE.totalRevenue()));
             });
+        }
+    }
+
+    /** Vehicles parked longer than this are flagged as overstays on the admin dashboard. */
+    private static final int OVERSTAY_MINUTES = 8 * 60;
+    /** A zone at or above this share of its usable slots raises a "nearly full" alert. */
+    private static final double ZONE_ALERT_PERCENT = 90.0;
+
+    /** POST /api/admin/maintenance {slotId, outOfService: "true"|"false"} - take a free slot out of service or reopen it. */
+    public static class MaintenanceHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                JsonUtil.sendError(exchange, 405, "Use POST");
+                return;
+            }
+            safely(exchange, () -> {
+                SessionManager.requireAdmin(exchange);
+                Map<String, String> body = JsonUtil.readBody(exchange);
+                int slotId;
+                try {
+                    slotId = Integer.parseInt(required(body, "slotId"));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("slotId must be a number");
+                }
+                String flag = required(body, "outOfService").toLowerCase();
+                if (!flag.equals("true") && !flag.equals("false")) {
+                    throw new IllegalArgumentException("outOfService must be true or false");
+                }
+                ParkingSlot slot = SERVICE.setSlotMaintenance(slotId, flag.equals("true"));
+                JsonUtil.sendJson(exchange, 200, JsonUtil.toJson(slot));
+            });
+        }
+    }
+
+    /** GET /api/admin/dashboard - every number the admin overview, charts and alerts need, in one call. */
+    public static class DashboardHandler implements HttpHandler {
+        private static final DashboardDAO DASH = new DashboardDAO();
+        private static final String[] DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                JsonUtil.sendError(exchange, 405, "Use GET");
+                return;
+            }
+            safely(exchange, () -> {
+                SessionManager.requireAdmin(exchange);
+                JsonUtil.sendJson(exchange, 200, build());
+            });
+        }
+
+        private static JsonUtil.JsonObject build() throws SQLException {
+            var zones = DASH.occupancyByZone();
+            var types = DASH.occupancyByType();
+
+            int total = 0, occupied = 0, oos = 0;
+            for (var z : zones) {
+                total += z.total();
+                occupied += z.occupied();
+                oos += z.outOfService();
+            }
+            int usable = total - oos;
+
+            List<ParkingRecord> active = SERVICE.listCurrentlyParked(null);
+            JsonUtil.JsonArray overstays = new JsonUtil.JsonArray();
+            int overstayCount = 0;
+            for (ParkingRecord r : active) {
+                if (r.getLiveMinutes() != null && r.getLiveMinutes() >= OVERSTAY_MINUTES) {
+                    overstays.add(JsonUtil.toJson(r));
+                    overstayCount++;
+                }
+            }
+
+            JsonUtil.JsonObject summary = new JsonUtil.JsonObject()
+                    .put("totalSlots", total)
+                    .put("occupied", occupied)
+                    .put("available", usable - occupied)
+                    .put("outOfService", oos)
+                    .put("occupancyPercent", usable <= 0 ? 0.0 : Math.round(occupied * 1000.0 / usable) / 10.0)
+                    .put("revenueToday", DASH.revenueLastDays(1))
+                    .put("revenueWeek", DASH.revenueLastDays(7))
+                    .put("revenueMonth", DASH.revenueLastDays(30))
+                    .put("revenueTotal", SERVICE.totalRevenue())
+                    .put("sessionsToday", DASH.sessionsStartedToday())
+                    .put("overstayCount", overstayCount)
+                    .put("overstayHours", OVERSTAY_MINUTES / 60);
+
+            JsonUtil.JsonArray byZone = new JsonUtil.JsonArray();
+            JsonUtil.JsonArray alerts = new JsonUtil.JsonArray();
+            for (var z : zones) {
+                byZone.add(occupancyJson("zone", z));
+                if (z.usable() > 0 && z.percent() >= ZONE_ALERT_PERCENT) {
+                    boolean full = z.occupied() >= z.usable();
+                    alerts.add(alert(full ? "danger" : "warn",
+                            z.name() + (full ? " is full" : " is " + Math.round(z.percent()) + "% full")
+                                    + " (" + z.occupied() + "/" + z.usable() + " slots in use)"));
+                }
+            }
+            JsonUtil.JsonArray byType = new JsonUtil.JsonArray();
+            for (var t : types) {
+                byType.add(occupancyJson("type", t));
+                if (t.usable() > 0 && t.occupied() >= t.usable()) {
+                    alerts.add(alert("danger", "No free " + t.name() + " slots left on campus"));
+                }
+            }
+            if (overstayCount > 0) {
+                alerts.add(alert("warn", overstayCount + (overstayCount == 1 ? " vehicle has" : " vehicles have")
+                        + " been parked for more than " + (OVERSTAY_MINUTES / 60) + " hours"));
+            }
+            if (oos > 0) {
+                alerts.add(alert("info", oos + (oos == 1 ? " slot is" : " slots are") + " out of service for maintenance"));
+            }
+
+            JsonUtil.JsonArray daily = new JsonUtil.JsonArray();
+            for (var e : DASH.dailyRevenue(14).entrySet()) {
+                daily.add(new JsonUtil.JsonObject().put("date", e.getKey().toString()).put("amount", e.getValue()));
+            }
+            JsonUtil.JsonArray revByType = new JsonUtil.JsonArray();
+            for (var e : DASH.revenueByType(30).entrySet()) {
+                revByType.add(new JsonUtil.JsonObject().put("type", e.getKey()).put("amount", e.getValue()));
+            }
+            JsonUtil.JsonArray hours = new JsonUtil.JsonArray();
+            int[] byHour = DASH.arrivalsByHour(30);
+            for (int h = 0; h < 24; h++) {
+                hours.add(new JsonUtil.JsonObject().put("hour", h).put("count", byHour[h]));
+            }
+            JsonUtil.JsonArray weekdays = new JsonUtil.JsonArray();
+            int[] byDay = DASH.arrivalsByWeekday(30);
+            for (int d = 0; d < 7; d++) {
+                weekdays.add(new JsonUtil.JsonObject().put("day", DAYS[d]).put("count", byDay[d]));
+            }
+
+            return new JsonUtil.JsonObject()
+                    .put("summary", summary)
+                    .put("byType", byType)
+                    .put("byZone", byZone)
+                    .put("revenueDaily", daily)
+                    .put("revenueByType", revByType)
+                    .put("peakHours", hours)
+                    .put("peakWeekdays", weekdays)
+                    .put("overstays", overstays)
+                    .put("alerts", alerts);
+        }
+
+        private static JsonUtil.JsonObject occupancyJson(String key, DashboardDAO.Occupancy o) {
+            return new JsonUtil.JsonObject()
+                    .put(key, o.name())
+                    .put("total", o.total())
+                    .put("occupied", o.occupied())
+                    .put("outOfService", o.outOfService())
+                    .put("available", o.usable() - o.occupied())
+                    .put("percent", o.percent());
+        }
+
+        private static JsonUtil.JsonObject alert(String level, String message) {
+            return new JsonUtil.JsonObject().put("level", level).put("message", message);
         }
     }
 

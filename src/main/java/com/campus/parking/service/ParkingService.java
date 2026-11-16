@@ -175,6 +175,11 @@ public class ParkingService {
         slotDAO.delete(slotId);
     }
 
+    /** Admin: close a free slot for maintenance (true) or reopen it (false). */
+    public ParkingSlot setSlotMaintenance(int slotId, boolean outOfService) throws SQLException {
+        return slotDAO.setOutOfService(slotId, outOfService);
+    }
+
     // ---------------- reports ----------------
 
     /**
