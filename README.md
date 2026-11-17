@@ -15,6 +15,13 @@ students locate their parked vehicles.
   username and password (students also give a roll number)
 - **Billing by duration**: a fee is calculated when a vehicle leaves
 
+## Documentation and presentation
+
+| File | What it is |
+|------|------------|
+| [`docs/PROJECT_DOCUMENTATION.md`](docs/PROJECT_DOCUMENTATION.md) | Detailed documentation focused on the Java concepts, JDBC, architecture, security and the key flows, with 37 viva questions and model answers |
+| [`docs/Smart-Campus-Parking-Presentation.pptx`](docs/Smart-Campus-Parking-Presentation.pptx) | 13-slide presentation with speaker notes |
+
 ### Demo accounts
 
 | Username   | Password     | Role    |
@@ -75,19 +82,26 @@ routing — is written by hand so the whole project stays easy to explain.
 
 ```
 src/main/java/com/campus/parking/
-  model/      Vehicle, ParkingSlot, ParkingRecord, VehicleType, User, Role
-  dao/        JDBC data-access classes (one per table)
+  model/      Vehicle, ParkingSlot, ParkingRecord, VehicleType (enum), User, Role (enum)
+  dao/        JDBC data-access classes, one per table: ParkingSlotDAO, VehicleDAO,
+              ParkingRecordDAO, ParkingRateDAO, UserDAO, plus DashboardDAO (admin aggregates)
   service/    ParkingService (allocation, billing, reports), AuthService (login, sign-up)
-  util/       DBConnection (JDBC connection helper), AuthUtil (password hashing),
-              SchemaMigrator (upgrades an older users table automatically)
-  web/        Server, ApiHandlers, SessionManager, StaticFileHandler, JsonUtil (REST API + static file server)
+  util/       DBConnection (JDBC connection helper), AuthUtil (PBKDF2 password hashing),
+              SchemaMigrator (upgrades an older database automatically)
+  web/        Server, ApiHandlers, SessionManager, StaticFileHandler, JsonUtil, AuthException
+              (REST API + static file server)
   ConsoleApp.java   Text-menu version of the app (same service layer)
 
 src/main/resources/
-  db/schema.sql     MySQL schema + seed data (wipes and recreates the tables)
-  db/migrate_signup.sql  Optional manual upgrade of an existing database (keeps your data)
+  db/schema.sql          MySQL schema + seed data (wipes and recreates the tables)
+  db/demo_data.sql       Optional month of demo history for the admin dashboard
+  db/migrate_signup.sql  Optional manual upgrade: email, roll_no and FACULTY role (keeps your data)
+  db/migrate_admin.sql   Optional manual upgrade: parking_slots.out_of_service (keeps your data)
   db.properties.example  Template for db.properties (copy it; db.properties is git-ignored)
-  static/           The HTML/CSS/JS frontend
+  static/                The HTML/CSS/JS frontend (Three.js bundled for the 3D map)
+
+tools/gen_demo_data.py   Generates db/demo_data.sql
+docs/                    Documentation and presentation (see above)
 ```
 
 ## How it works
@@ -102,6 +116,21 @@ src/main/resources/
 - Allocating a slot and creating a parking record happen inside a single
   JDBC transaction (`ParkingService.parkVehicle`), so two people parking at
   the same moment can never be given the same slot.
+
+## Java concepts used
+
+A quick map from concept to code (the full explanation is in
+[`docs/PROJECT_DOCUMENTATION.md`](docs/PROJECT_DOCUMENTATION.md)).
+
+| Area | Concepts | Where |
+|------|----------|-------|
+| OOP | Encapsulation, inheritance, polymorphism, abstraction, nested classes, static utility classes | `ParkingRecord`, `AuthException extends RuntimeException`, route classes implementing `HttpHandler`, `ParkingService.OccupancyStat`, `AuthUtil` |
+| Modern Java | Enums with methods, records, switch expressions, text blocks, `var`, `Optional`, lambdas, functional interfaces, `HexFormat` | `VehicleType`, `SessionManager.Session`, `ConsoleApp`, `ParkingService.locateVehicle`, `ParkingRecordDAO.closeRecord`, `ApiHandlers.HandlerBody` |
+| Collections | `List`/`ArrayList`, `Map`, `LinkedHashMap`, `ConcurrentHashMap` | DAO results, `occupancyReport`, `JsonUtil`, `SessionManager` |
+| Exceptions | Checked (`SQLException`) and unchecked exceptions, custom exception, try-with-resources, multi-catch, `finally`, exception chaining | DAOs, `ParkingService`, `AuthUtil`, `ApiHandlers.safely` |
+| JDBC | `Connection`, `PreparedStatement`, `ResultSet`, transactions (`commit`/`rollback`), `SELECT ... FOR UPDATE`, generated keys | `DBConnection`, all DAOs, `ParkingService.parkVehicle` |
+| Concurrency | Fixed thread pool, thread-safe map, `synchronized`, database row locks | `Server`, `SessionManager`, `SchemaMigrator`, `ParkingSlotDAO.allocateFreeSlot` |
+| Other | `BigDecimal` for money, `java.time`, regular expressions, streams (I/O), `StringBuilder` | billing, `ParkingRecord`, `AuthService`, `StaticFileHandler`, `JsonUtil` |
 
 ## Setup
 
