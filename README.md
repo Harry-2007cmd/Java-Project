@@ -20,7 +20,7 @@ students locate their parked vehicles.
 | File | What it is |
 |------|------------|
 | [`docs/PROJECT_DOCUMENTATION.md`](docs/PROJECT_DOCUMENTATION.md) | Detailed documentation focused on the Java concepts, JDBC, architecture, security and the key flows, with 37 viva questions and model answers |
-| [`docs/Smart-Campus-Parking-Presentation.pptx`](docs/Smart-Campus-Parking-Presentation.pptx) | 13-slide presentation with speaker notes |
+| [`docs/Smart-Campus-Parking-Presentation.pptx`](docs/Smart-Campus-Parking-Presentation.pptx) | 16-slide presentation with speaker notes |
 
 ### Demo accounts
 
